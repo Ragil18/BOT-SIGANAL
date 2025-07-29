@@ -901,6 +901,11 @@ def show_smart_alerts():
             "Trend Change"
         ])
         
+        target_price = 0.0
+        rsi_level = 30
+        volume_multiplier = 2.0
+        alert_condition = "Above"
+        
         if alert_type == "Price Target":
             target_price = st.number_input("Target Price (₹)", min_value=0.0, step=1000.0)
             alert_condition = st.selectbox("Condition", ["Above", "Below"])

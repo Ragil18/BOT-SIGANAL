@@ -78,7 +78,10 @@ class SignalGenerator:
     
     def _fast_rsi_signals(self, indicators: pd.DataFrame) -> pd.Series:
         """Generate fast RSI signals for scalping"""
-        rsi = indicators.get('rsi_fast', indicators.get('rsi', pd.Series(50, index=indicators.index)))
+        rsi = indicators.get('rsi_fast', indicators.get('rsi', None))
+        if rsi is None or rsi.empty:
+            return pd.Series(0.0, index=indicators.index)
+            
         signals = pd.Series(0.0, index=indicators.index)
         
         # More sensitive thresholds for scalping
@@ -92,7 +95,7 @@ class SignalGenerator:
         signals[rsi_momentum > 8] += 0.4
         signals[rsi_momentum < -8] -= 0.4
         
-        return np.clip(signals, -1, 1)
+        return signals.clip(-1, 1)
     
     def _macd_signals(self, indicators: pd.DataFrame) -> pd.Series:
         """Generate MACD-based signals"""
@@ -172,7 +175,10 @@ class SignalGenerator:
     
     def _williams_r_signals(self, indicators: pd.DataFrame) -> pd.Series:
         """Generate Williams %R signals for scalping"""
-        williams = indicators.get('williams_r', pd.Series(-50, index=indicators.index))
+        williams = indicators.get('williams_r', None)
+        if williams is None:
+            return pd.Series(0.0, index=indicators.index)
+            
         signals = pd.Series(0.0, index=indicators.index)
         
         # Oversold/Overbought levels for scalping
@@ -185,15 +191,21 @@ class SignalGenerator:
     
     def _velocity_signals(self, indicators: pd.DataFrame) -> pd.Series:
         """Generate price velocity signals for scalping"""
-        velocity = indicators.get('price_velocity', pd.Series(0, index=indicators.index))
+        velocity = indicators.get('price_velocity', None)
+        if velocity is None:
+            return pd.Series(0.0, index=indicators.index)
+            
         signals = pd.Series(0.0, index=indicators.index)
         
-        # Momentum-based signals
-        velocity_std = velocity.rolling(20).std()
-        threshold = velocity_std * 1.5
-        
-        signals[velocity > threshold] = 0.7   # Strong upward momentum
-        signals[velocity < -threshold] = -0.7  # Strong downward momentum
+        try:
+            # Momentum-based signals
+            velocity_std = velocity.rolling(20).std()
+            threshold = velocity_std * 1.5
+            
+            signals[velocity > threshold] = 0.7   # Strong upward momentum
+            signals[velocity < -threshold] = -0.7  # Strong downward momentum
+        except:
+            pass
         
         return signals
     
