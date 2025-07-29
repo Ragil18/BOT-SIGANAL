@@ -6,35 +6,42 @@ class SignalGenerator:
     """Class for generating trading signals based on technical indicators"""
     
     def __init__(self):
+        # Optimized weights for scalp trading
         self.signal_weights = {
-            'rsi': 0.25,
-            'macd': 0.25,
-            'bollinger': 0.20,
-            'moving_average': 0.15,
+            'fast_rsi': 0.20,
+            'macd': 0.20,
+            'bollinger': 0.15,
+            'scalp_trend': 0.15,
             'stochastic': 0.10,
-            'volume': 0.05
+            'williams_r': 0.10,
+            'volume': 0.05,
+            'velocity': 0.05
         }
     
-    def generate_signals(self, data: pd.DataFrame, indicators: pd.DataFrame, threshold: float = 0.6) -> pd.DataFrame:
-        """Generate comprehensive trading signals"""
+    def generate_signals(self, data: pd.DataFrame, indicators: pd.DataFrame, threshold: float = 0.5) -> pd.DataFrame:
+        """Generate scalping-optimized trading signals"""
         signals = pd.DataFrame(index=data.index)
         
-        # Calculate individual signal components
-        rsi_signals = self._rsi_signals(indicators)
+        # Calculate individual signal components for scalping
+        fast_rsi_signals = self._fast_rsi_signals(indicators)
         macd_signals = self._macd_signals(indicators)
         bb_signals = self._bollinger_signals(data, indicators)
-        ma_signals = self._moving_average_signals(data, indicators)
+        scalp_trend_signals = self._scalp_trend_signals(indicators)
         stoch_signals = self._stochastic_signals(indicators)
+        williams_signals = self._williams_r_signals(indicators)
         volume_signals = self._volume_signals(data, indicators)
+        velocity_signals = self._velocity_signals(indicators)
         
-        # Combine signals with weights
+        # Combine signals with scalping weights
         combined_score = (
-            rsi_signals * self.signal_weights['rsi'] +
+            fast_rsi_signals * self.signal_weights['fast_rsi'] +
             macd_signals * self.signal_weights['macd'] +
             bb_signals * self.signal_weights['bollinger'] +
-            ma_signals * self.signal_weights['moving_average'] +
+            scalp_trend_signals * self.signal_weights['scalp_trend'] +
             stoch_signals * self.signal_weights['stochastic'] +
-            volume_signals * self.signal_weights['volume']
+            williams_signals * self.signal_weights['williams_r'] +
+            volume_signals * self.signal_weights['volume'] +
+            velocity_signals * self.signal_weights['velocity']
         )
         
         # Generate final signals
@@ -52,28 +59,29 @@ class SignalGenerator:
         signals.loc[sell_condition, 'signal'] = 'SELL'
         
         # Add reasoning
-        signals['reason'] = self._generate_reasons(
-            signals, indicators, rsi_signals, macd_signals, 
-            bb_signals, ma_signals, stoch_signals, volume_signals
+        signals['reason'] = self._generate_scalp_reasons(
+            signals, indicators, fast_rsi_signals, macd_signals, 
+            bb_signals, scalp_trend_signals, stoch_signals, williams_signals, 
+            volume_signals, velocity_signals
         )
         
         return signals
     
-    def _rsi_signals(self, indicators: pd.DataFrame) -> pd.Series:
-        """Generate RSI-based signals"""
-        rsi = indicators['rsi']
+    def _fast_rsi_signals(self, indicators: pd.DataFrame) -> pd.Series:
+        """Generate fast RSI signals for scalping"""
+        rsi = indicators.get('rsi_fast', indicators.get('rsi', pd.Series(50, index=indicators.index)))
         signals = pd.Series(0.0, index=indicators.index)
         
-        # Oversold/Overbought conditions
-        signals[rsi < 30] = 1.0  # Strong buy
-        signals[rsi < 35] = 0.7  # Moderate buy
-        signals[rsi > 70] = -1.0  # Strong sell
-        signals[rsi > 65] = -0.7  # Moderate sell
+        # More sensitive thresholds for scalping
+        signals[rsi < 25] = 1.0   # Strong buy
+        signals[rsi < 30] = 0.8   # Moderate buy
+        signals[rsi > 75] = -1.0  # Strong sell
+        signals[rsi > 70] = -0.8  # Moderate sell
         
-        # Divergence detection (simplified)
-        rsi_momentum = rsi.diff(3)
-        signals[rsi_momentum > 5] += 0.3
-        signals[rsi_momentum < -5] -= 0.3
+        # Fast momentum for scalping
+        rsi_momentum = rsi.diff(2)
+        signals[rsi_momentum > 8] += 0.4
+        signals[rsi_momentum < -8] -= 0.4
         
         return np.clip(signals, -1, 1)
     
@@ -141,6 +149,44 @@ class SignalGenerator:
         signals[distance_from_middle > 0.05] -= distance_from_middle * 2
         
         return np.clip(signals, -1, 1)
+    
+    def _scalp_trend_signals(self, indicators: pd.DataFrame) -> pd.Series:
+        """Generate scalping trend signals"""
+        trend = indicators.get('scalp_trend', pd.Series(0, index=indicators.index))
+        signals = pd.Series(0.0, index=indicators.index)
+        
+        # Direct trend following for scalping
+        signals[trend > 0] = 0.8
+        signals[trend < 0] = -0.8
+        
+        return signals
+    
+    def _williams_r_signals(self, indicators: pd.DataFrame) -> pd.Series:
+        """Generate Williams %R signals for scalping"""
+        williams = indicators.get('williams_r', pd.Series(-50, index=indicators.index))
+        signals = pd.Series(0.0, index=indicators.index)
+        
+        # Oversold/Overbought levels for scalping
+        signals[williams < -85] = 0.9   # Strong buy
+        signals[williams < -80] = 0.6   # Moderate buy
+        signals[williams > -15] = -0.9  # Strong sell
+        signals[williams > -20] = -0.6  # Moderate sell
+        
+        return signals
+    
+    def _velocity_signals(self, indicators: pd.DataFrame) -> pd.Series:
+        """Generate price velocity signals for scalping"""
+        velocity = indicators.get('price_velocity', pd.Series(0, index=indicators.index))
+        signals = pd.Series(0.0, index=indicators.index)
+        
+        # Momentum-based signals
+        velocity_std = velocity.rolling(20).std()
+        threshold = velocity_std * 1.5
+        
+        signals[velocity > threshold] = 0.7   # Strong upward momentum
+        signals[velocity < -threshold] = -0.7  # Strong downward momentum
+        
+        return signals
     
     def _moving_average_signals(self, data: pd.DataFrame, indicators: pd.DataFrame) -> pd.Series:
         """Generate Moving Average-based signals"""
@@ -228,44 +274,52 @@ class SignalGenerator:
         
         return np.clip(signals, -1, 1)
     
-    def _generate_reasons(self, signals: pd.DataFrame, indicators: pd.DataFrame, 
-                         rsi_signals: pd.Series, macd_signals: pd.Series, 
-                         bb_signals: pd.Series, ma_signals: pd.Series,
-                         stoch_signals: pd.Series, volume_signals: pd.Series) -> pd.Series:
+    def _generate_scalp_reasons(self, signals: pd.DataFrame, indicators: pd.DataFrame,
+                               fast_rsi_signals: pd.Series, macd_signals: pd.Series,
+                               bb_signals: pd.Series, scalp_trend_signals: pd.Series,
+                               stoch_signals: pd.Series, williams_signals: pd.Series,
+                               volume_signals: pd.Series, velocity_signals: pd.Series) -> pd.Series:
         """Generate human-readable reasons for signals"""
         reasons = pd.Series('', index=signals.index)
         
         for idx in signals.index[signals['signal'] != 'HOLD']:
             reason_parts = []
             
-            if abs(rsi_signals[idx]) > 0.5:
-                if rsi_signals[idx] > 0:
-                    reason_parts.append(f"RSI oversold ({indicators.loc[idx, 'rsi']:.1f})")
+            if abs(fast_rsi_signals[idx]) > 0.5:
+                rsi_val = indicators.get('rsi_fast', indicators.get('rsi', pd.Series(50, index=indicators.index)))[idx]
+                if fast_rsi_signals[idx] > 0:
+                    reason_parts.append(f"Fast RSI oversold ({rsi_val:.1f})")
                 else:
-                    reason_parts.append(f"RSI overbought ({indicators.loc[idx, 'rsi']:.1f})")
+                    reason_parts.append(f"Fast RSI overbought ({rsi_val:.1f})")
             
             if abs(macd_signals[idx]) > 0.5:
                 if macd_signals[idx] > 0:
-                    reason_parts.append("MACD bullish crossover")
+                    reason_parts.append("MACD scalp bullish")
                 else:
-                    reason_parts.append("MACD bearish crossover")
+                    reason_parts.append("MACD scalp bearish")
             
-            if abs(bb_signals[idx]) > 0.5:
-                if bb_signals[idx] > 0:
-                    reason_parts.append("Near Bollinger lower band")
+            if abs(scalp_trend_signals[idx]) > 0.6:
+                if scalp_trend_signals[idx] > 0:
+                    reason_parts.append("Scalp trend UP")
                 else:
-                    reason_parts.append("Near Bollinger upper band")
+                    reason_parts.append("Scalp trend DOWN")
             
-            if abs(ma_signals[idx]) > 0.5:
-                if ma_signals[idx] > 0:
-                    reason_parts.append("Above moving averages")
+            if abs(williams_signals[idx]) > 0.6:
+                if williams_signals[idx] > 0:
+                    reason_parts.append("Williams %R oversold")
                 else:
-                    reason_parts.append("Below moving averages")
+                    reason_parts.append("Williams %R overbought")
+            
+            if abs(velocity_signals[idx]) > 0.5:
+                if velocity_signals[idx] > 0:
+                    reason_parts.append("Strong upward momentum")
+                else:
+                    reason_parts.append("Strong downward momentum")
             
             if abs(volume_signals[idx]) > 0.3:
-                reason_parts.append("High volume confirmation")
+                reason_parts.append("Volume spike")
             
-            reasons[idx] = "; ".join(reason_parts) if reason_parts else "Multiple indicators aligned"
+            reasons[idx] = "; ".join(reason_parts) if reason_parts else "Scalp signals aligned"
         
         return reasons
     

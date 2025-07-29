@@ -100,17 +100,27 @@ def main():
         
         st.markdown("---")
         
-        # Indicator settings
-        st.subheader("Indicator Settings")
-        rsi_period = st.slider("RSI Period", 5, 50, 14)
-        macd_fast = st.slider("MACD Fast", 5, 20, 12)
-        macd_slow = st.slider("MACD Slow", 20, 50, 26)
-        macd_signal = st.slider("MACD Signal", 5, 15, 9)
-        bb_period = st.slider("Bollinger Bands Period", 10, 30, 20)
-        bb_std = st.slider("Bollinger Bands Std", 1.0, 3.0, 2.0, 0.1)
+        # Scalping Indicator settings
+        st.subheader("Scalping Settings")
+        st.markdown("**Optimized for fast trades**")
         
-        # Signal threshold
-        signal_threshold = st.slider("Signal Strength Threshold", 0.0, 1.0, 0.6, 0.1)
+        rsi_period = st.slider("Fast RSI Period", 3, 14, 7)
+        macd_fast = st.slider("MACD Fast", 3, 12, 5)
+        macd_slow = st.slider("MACD Slow", 8, 26, 13)
+        macd_signal = st.slider("MACD Signal", 3, 9, 5)
+        bb_period = st.slider("Bollinger Period", 5, 20, 10)
+        bb_std = st.slider("Bollinger Std", 1.0, 2.5, 1.5, 0.1)
+        
+        # Signal threshold (more sensitive for scalping)
+        signal_threshold = st.slider("Signal Sensitivity", 0.2, 0.8, 0.4, 0.1)
+        
+        # Scalping timeframe recommendation
+        if timeframe in ['1m', '5m']:
+            st.success("✅ Good for scalping")
+        elif timeframe in ['15m', '30m']:
+            st.warning("⚠️ Medium-term scalping")
+        else:
+            st.error("❌ Too slow for scalping")
     
     # Main content based on selected page
     if page == "Live Signals":
@@ -571,13 +581,13 @@ def show_signal_history():
 def create_chart(data, indicators, signals):
     """Create an interactive chart with price, indicators, and signals"""
     
-    # Create subplots
+    # Create subplots optimized for scalping
     fig = make_subplots(
-        rows=4, cols=1,
+        rows=5, cols=1,
         shared_xaxes=True,
         vertical_spacing=0.02,
-        subplot_titles=('Price & Bollinger Bands', 'Volume', 'RSI', 'MACD'),
-        row_width=[0.4, 0.1, 0.2, 0.3]
+        subplot_titles=('Price & EMAs', 'Volume', 'Fast RSI & Williams %R', 'MACD', 'Stochastic'),
+        row_heights=[0.4, 0.1, 0.2, 0.2, 0.1]
     )
     
     # Price chart with Bollinger Bands
@@ -630,27 +640,52 @@ def create_chart(data, indicators, signals):
             row=1, col=1
         )
     
-    # Moving averages
-    if 'sma_20' in indicators.columns:
+    # Fast EMAs for scalping
+    if 'ema_5' in indicators.columns:
         fig.add_trace(
             go.Scatter(
                 x=data.index,
-                y=indicators['sma_20'],
+                y=indicators['ema_5'],
                 mode='lines',
-                name='SMA 20',
-                line=dict(color='blue', width=1)
+                name='EMA 5',
+                line=dict(color='blue', width=2)
             ),
             row=1, col=1
         )
     
-    if 'ema_12' in indicators.columns:
+    if 'ema_8' in indicators.columns:
         fig.add_trace(
             go.Scatter(
                 x=data.index,
-                y=indicators['ema_12'],
+                y=indicators['ema_8'],
                 mode='lines',
-                name='EMA 12',
-                line=dict(color='red', width=1)
+                name='EMA 8',
+                line=dict(color='red', width=2)
+            ),
+            row=1, col=1
+        )
+    
+    if 'ema_13' in indicators.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=data.index,
+                y=indicators['ema_13'],
+                mode='lines',
+                name='EMA 13',
+                line=dict(color='green', width=2)
+            ),
+            row=1, col=1
+        )
+    
+    # VWAP for scalping
+    if 'vwap' in indicators.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=data.index,
+                y=indicators['vwap'],
+                mode='lines',
+                name='VWAP',
+                line=dict(color='purple', width=2, dash='dash')
             ),
             row=1, col=1
         )
@@ -705,23 +740,40 @@ def create_chart(data, indicators, signals):
         row=2, col=1
     )
     
-    # RSI
-    if 'rsi' in indicators.columns:
+    # Fast RSI and Williams %R for scalping
+    if 'rsi_fast' in indicators.columns:
         fig.add_trace(
             go.Scatter(
                 x=data.index,
-                y=indicators['rsi'],
+                y=indicators['rsi_fast'],
                 mode='lines',
-                name='RSI',
+                name='Fast RSI',
                 line=dict(color='purple', width=2)
             ),
             row=3, col=1
         )
         
-        # RSI levels
-        fig.add_hline(y=70, line_dash="dash", line_color="red", row=3, col=1)
-        fig.add_hline(y=30, line_dash="dash", line_color="green", row=3, col=1)
-        fig.add_hline(y=50, line_dash="dot", line_color="gray", row=3, col=1)
+    if 'williams_r' in indicators.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=data.index,
+                y=indicators['williams_r'],
+                mode='lines',
+                name='Williams %R',
+                line=dict(color='orange', width=2),
+                yaxis='y2'
+            ),
+            row=3, col=1
+        )
+        
+        # Reference lines for Williams %R
+        fig.add_hline(y=-20, line_dash="dash", line_color="red", row=3, col=1, opacity=0.5)
+        fig.add_hline(y=-80, line_dash="dash", line_color="green", row=3, col=1, opacity=0.5)
+        
+    # RSI levels (scalping thresholds)
+    fig.add_hline(y=75, line_dash="dash", line_color="red", row=3, col=1, opacity=0.7)
+    fig.add_hline(y=25, line_dash="dash", line_color="green", row=3, col=1, opacity=0.7)
+    fig.add_hline(y=50, line_dash="dot", line_color="gray", row=3, col=1, opacity=0.5)
     
     # MACD
     if 'macd' in indicators.columns:
@@ -758,13 +810,47 @@ def create_chart(data, indicators, signals):
             row=4, col=1
         )
     
-    # Update layout
+    # Stochastic Oscillator
+    if 'stochastic_k' in indicators.columns:
+        fig.add_trace(
+            go.Scatter(
+                x=data.index,
+                y=indicators['stochastic_k'],
+                mode='lines',
+                name='%K',
+                line=dict(color='blue', width=2)
+            ),
+            row=5, col=1
+        )
+        
+        fig.add_trace(
+            go.Scatter(
+                x=data.index,
+                y=indicators['stochastic_d'],
+                mode='lines',
+                name='%D',
+                line=dict(color='red', width=2)
+            ),
+            row=5, col=1
+        )
+        
+        # Stochastic reference lines
+        fig.add_hline(y=80, line_dash="dash", line_color="red", row=5, col=1, opacity=0.7)
+        fig.add_hline(y=20, line_dash="dash", line_color="green", row=5, col=1, opacity=0.7)
+    
+    # Update layout with better time formatting
     fig.update_layout(
-        title="Technical Analysis Chart",
+        title=f"Scalping Analysis Chart - Last Updated: {data.index[-1].strftime('%H:%M:%S')}",
         xaxis_rangeslider_visible=False,
-        height=800,
+        height=900,
         showlegend=True,
         hovermode='x unified'
+    )
+    
+    # Format x-axis to show time properly
+    fig.update_xaxes(
+        tickformat='%H:%M',
+        title_text="Time"
     )
     
     # Update y-axis labels

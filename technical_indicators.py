@@ -9,45 +9,64 @@ class TechnicalIndicators:
         pass
     
     def calculate_all(self, data: pd.DataFrame, params: Dict[str, Any]) -> pd.DataFrame:
-        """Calculate all technical indicators"""
+        """Calculate all technical indicators optimized for scalp trading"""
         indicators = pd.DataFrame(index=data.index)
         
-        # RSI
-        indicators['rsi'] = self.calculate_rsi(data['Close'], params['rsi_period'])
+        # Fast RSI for scalping
+        indicators['rsi'] = self.calculate_rsi(data['Close'], params.get('rsi_period', 7))
+        indicators['rsi_fast'] = self.calculate_rsi(data['Close'], 5)  # Very fast RSI
         
-        # MACD
+        # MACD with faster settings
         macd_data = self.calculate_macd(
             data['Close'], 
-            params['macd_fast'], 
-            params['macd_slow'], 
-            params['macd_signal']
+            params.get('macd_fast', 5), 
+            params.get('macd_slow', 13), 
+            params.get('macd_signal', 5)
         )
         indicators = indicators.join(macd_data)
         
-        # Bollinger Bands
+        # Bollinger Bands with tighter settings
         bb_data = self.calculate_bollinger_bands(
             data['Close'], 
-            params['bb_period'], 
-            params['bb_std']
+            params.get('bb_period', 10), 
+            params.get('bb_std', 1.5)
         )
         indicators = indicators.join(bb_data)
         
-        # Moving Averages
-        indicators['sma_20'] = self.calculate_sma(data['Close'], 20)
-        indicators['sma_50'] = self.calculate_sma(data['Close'], 50)
-        indicators['ema_12'] = self.calculate_ema(data['Close'], 12)
-        indicators['ema_26'] = self.calculate_ema(data['Close'], 26)
+        # Fast Moving Averages for scalping
+        indicators['ema_5'] = self.calculate_ema(data['Close'], 5)
+        indicators['ema_8'] = self.calculate_ema(data['Close'], 8)
+        indicators['ema_13'] = self.calculate_ema(data['Close'], 13)
+        indicators['ema_21'] = self.calculate_ema(data['Close'], 21)
+        indicators['sma_9'] = self.calculate_sma(data['Close'], 9)
         
-        # Stochastic Oscillator
-        stoch_data = self.calculate_stochastic(data, 14, 3, 3)
+        # Fast Stochastic for scalping
+        stoch_data = self.calculate_stochastic(data, 5, 3, 3)
         indicators = indicators.join(stoch_data)
         
-        # Average True Range (ATR)
+        # Williams %R for scalping
+        indicators['williams_r'] = self.calculate_williams_r(data, 14)
+        
+        # CCI (Commodity Channel Index) for scalping
+        indicators['cci'] = self.calculate_cci(data, 14)
+        
+        # Average True Range for volatility
         indicators['atr'] = self.calculate_atr(data, 14)
         
         # Volume indicators
-        indicators['volume_sma'] = self.calculate_sma(data['Volume'], 20)
+        indicators['volume_sma'] = self.calculate_sma(data['Volume'], 10)
         indicators['volume_ratio'] = data['Volume'] / indicators['volume_sma']
+        
+        # Price momentum for scalping
+        indicators['momentum'] = self.calculate_momentum(data['Close'], 3)
+        indicators['roc'] = self.calculate_roc(data['Close'], 5)
+        
+        # VWAP (Volume Weighted Average Price)
+        indicators['vwap'] = self.calculate_vwap(data)
+        
+        # Scalping specific indicators
+        indicators['scalp_trend'] = self.calculate_scalp_trend(data)
+        indicators['price_velocity'] = self.calculate_price_velocity(data['Close'])
         
         return indicators
     
@@ -149,3 +168,34 @@ class TechnicalIndicators:
     def calculate_roc(self, prices: pd.Series, period: int = 12) -> pd.Series:
         """Calculate Rate of Change"""
         return ((prices - prices.shift(period)) / prices.shift(period)) * 100
+    
+    def calculate_vwap(self, data: pd.DataFrame) -> pd.Series:
+        """Calculate Volume Weighted Average Price"""
+        typical_price = (data['High'] + data['Low'] + data['Close']) / 3
+        volume_price = typical_price * data['Volume']
+        cumulative_volume_price = volume_price.cumsum()
+        cumulative_volume = data['Volume'].cumsum()
+        
+        return cumulative_volume_price / cumulative_volume
+    
+    def calculate_scalp_trend(self, data: pd.DataFrame) -> pd.Series:
+        """Calculate scalping trend indicator based on fast EMAs"""
+        ema5 = self.calculate_ema(data['Close'], 5)
+        ema8 = self.calculate_ema(data['Close'], 8)
+        ema13 = self.calculate_ema(data['Close'], 13)
+        
+        # Trend strength: +1 (strong up), 0 (neutral), -1 (strong down)
+        trend = pd.Series(0.0, index=data.index)
+        
+        # Bullish when EMAs are aligned upward
+        bullish = (ema5 > ema8) & (ema8 > ema13) & (data['Close'] > ema5)
+        bearish = (ema5 < ema8) & (ema8 < ema13) & (data['Close'] < ema5)
+        
+        trend[bullish] = 1.0
+        trend[bearish] = -1.0
+        
+        return trend
+    
+    def calculate_price_velocity(self, prices: pd.Series, period: int = 3) -> pd.Series:
+        """Calculate price velocity for scalping momentum"""
+        return prices.diff(period) / period
