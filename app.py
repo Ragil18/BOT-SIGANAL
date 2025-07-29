@@ -33,14 +33,43 @@ technical_indicators = TechnicalIndicators()
 signal_generator = SignalGenerator()
 backtester = Backtester()
 
+def display_live_ticker():
+    """Display a live price ticker for major cryptocurrencies"""
+    ticker_symbols = ['BTC', 'ETH', 'BNB', 'XRP', 'ADA']
+    
+    cols = st.columns(len(ticker_symbols))
+    
+    for i, symbol in enumerate(ticker_symbols):
+        try:
+            price_data = data_fetcher.get_real_time_price(symbol)
+            if price_data:
+                with cols[i]:
+                    price = price_data['price']
+                    change_pct = price_data['change_percent']
+                    color = "🟢" if change_pct >= 0 else "🔴"
+                    
+                    st.metric(
+                        label=f"{color} {symbol}",
+                        value=f"₹{price:,.0f}",
+                        delta=f"{change_pct:+.2f}%"
+                    )
+        except:
+            with cols[i]:
+                st.metric(label=f"⚪ {symbol}", value="Loading...", delta="")
+
 def main():
     st.title("₿ Crypto Trading Signal Bot")
     st.markdown("**Real-time cryptocurrency analysis with signals in Indian Rupees (INR)**")
+    
+    # Live price ticker
+    st.subheader("Live Crypto Prices")
+    display_live_ticker()
     st.markdown("---")
     
-    # Display current USD/INR rate
+    # Display current USD/INR rate and real-time status
     usd_to_inr = data_fetcher.get_usd_to_inr_rate()
     st.sidebar.info(f"💱 USD to INR: ₹{usd_to_inr:.2f}")
+    st.sidebar.success("🟢 Real-time Data Active | Updates every 1 minute")
     
     # Sidebar for navigation and settings
     with st.sidebar:
@@ -133,6 +162,10 @@ def show_live_signals(symbol, timeframe, period, indicator_params, signal_thresh
         current_price = data['Close'].iloc[-1]
         current_signal = signals.iloc[-1] if not signals.empty else None
         
+        # Show last update time
+        last_update = data.index[-1]
+        st.info(f"📊 Last updated: {last_update.strftime('%Y-%m-%d %H:%M:%S')} | Data refreshes every 1 minute")
+        
         # Display current status
         col1, col2, col3 = st.columns(3)
         
@@ -210,14 +243,44 @@ def show_live_signals(symbol, timeframe, period, indicator_params, signal_thresh
                st.session_state.signals_history[-1]['timestamp'].date() != signal_data['timestamp'].date():
                 st.session_state.signals_history.append(signal_data)
         
-        # Auto-refresh
-        if st.button("🔄 Refresh Data"):
-            st.rerun()
+        # Auto-refresh controls
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("🔄 Refresh Data"):
+                st.rerun()
         
-        # Real-time updates (every 30 seconds for demo)
-        placeholder = st.empty()
-        if st.checkbox("Enable Auto-Refresh (30s)"):
-            time.sleep(30)
+        with col2:
+            auto_refresh = st.checkbox("Enable Auto-Refresh")
+        
+        # Auto-refresh functionality
+        if auto_refresh:
+            refresh_interval = st.selectbox(
+                "Refresh Interval", 
+                ["30 seconds", "1 minute", "2 minutes", "5 minutes"],
+                index=1
+            )
+            
+            # Convert to seconds
+            interval_map = {
+                "30 seconds": 30,
+                "1 minute": 60, 
+                "2 minutes": 120,
+                "5 minutes": 300
+            }
+            
+            interval = interval_map[refresh_interval]
+            
+            # Display countdown and auto-refresh
+            placeholder = st.empty()
+            progress_bar = st.progress(0)
+            
+            for i in range(interval, 0, -1):
+                placeholder.text(f"Next refresh in: {i} seconds")
+                progress_bar.progress((interval - i) / interval)
+                time.sleep(1)
+            
+            placeholder.empty()
+            progress_bar.empty()
             st.rerun()
             
     except Exception as e:

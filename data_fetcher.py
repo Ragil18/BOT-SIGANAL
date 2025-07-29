@@ -8,7 +8,7 @@ class DataFetcher:
     """Class for fetching cryptocurrency market data with INR conversion"""
     
     def __init__(self):
-        self.cache_duration = 300  # 5 minutes cache
+        self.cache_duration = 60  # 1 minute cache for more real-time data
         self.usd_to_inr_rate = None
     
     @st.cache_data(ttl=300)
@@ -26,7 +26,7 @@ class DataFetcher:
         except Exception:
             return 83.0  # Fallback rate
     
-    @st.cache_data(ttl=300)
+    @st.cache_data(ttl=60)
     def get_data(_self, symbol: str, period: str = "1mo", interval: str = "1h") -> pd.DataFrame:
         """Fetch cryptocurrency data with INR conversion"""
         try:

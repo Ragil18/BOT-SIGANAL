@@ -32,7 +32,7 @@ The application follows a modular architecture with separate components for diff
 - **Purpose**: Cryptocurrency market data acquisition and INR conversion
 - **Data Source**: Yahoo Finance (yfinance library) for crypto symbols
 - **Currency Conversion**: Automatic USD to INR conversion using live exchange rates
-- **Caching Strategy**: 5-minute TTL caching to reduce API calls
+- **Caching Strategy**: 1-minute TTL caching for near real-time updates
 - **Data Types**: Real-time and historical cryptocurrency OHLCV data with INR pricing
 
 ### 3. Technical Indicators (technical_indicators.py)
