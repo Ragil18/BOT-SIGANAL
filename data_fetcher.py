@@ -2,17 +2,38 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
 import streamlit as st
+import requests
 
 class DataFetcher:
-    """Class for fetching market data from various sources"""
+    """Class for fetching cryptocurrency market data with INR conversion"""
     
     def __init__(self):
         self.cache_duration = 300  # 5 minutes cache
+        self.usd_to_inr_rate = None
+    
+    @st.cache_data(ttl=300)
+    def get_usd_to_inr_rate(_self) -> float:
+        """Get current USD to INR exchange rate"""
+        try:
+            # Using Yahoo Finance for USD/INR rate
+            ticker = yf.Ticker("USDINR=X")
+            data = ticker.history(period="1d", interval="1d")
+            if not data.empty:
+                return float(data['Close'].iloc[-1])
+            else:
+                # Fallback rate if API fails
+                return 83.0  # Approximate rate
+        except Exception:
+            return 83.0  # Fallback rate
     
     @st.cache_data(ttl=300)
     def get_data(_self, symbol: str, period: str = "1mo", interval: str = "1h") -> pd.DataFrame:
-        """Fetch market data for a given symbol"""
+        """Fetch cryptocurrency data with INR conversion"""
         try:
+            # Ensure crypto symbol format for Yahoo Finance
+            if not symbol.endswith('-USD'):
+                symbol = f"{symbol}-USD"
+            
             ticker = yf.Ticker(symbol)
             data = ticker.history(period=period, interval=interval)
             
@@ -30,6 +51,12 @@ class DataFetcher:
                 st.error(f"Missing required columns: {missing_columns}")
                 return pd.DataFrame()
             
+            # Convert USD prices to INR
+            usd_to_inr = _self.get_usd_to_inr_rate()
+            price_columns = ['Open', 'High', 'Low', 'Close']
+            for col in price_columns:
+                data[col] = data[col] * usd_to_inr
+            
             return data
             
         except Exception as e:
@@ -38,8 +65,12 @@ class DataFetcher:
     
     @st.cache_data(ttl=300)
     def get_historical_data(_self, symbol: str, start_date: datetime, end_date: datetime, interval: str = "1d") -> pd.DataFrame:
-        """Fetch historical data for backtesting"""
+        """Fetch historical cryptocurrency data for backtesting with INR conversion"""
         try:
+            # Ensure crypto symbol format
+            if not symbol.endswith('-USD'):
+                symbol = f"{symbol}-USD"
+                
             ticker = yf.Ticker(symbol)
             data = ticker.history(start=start_date, end=end_date, interval=interval)
             
@@ -49,6 +80,13 @@ class DataFetcher:
             # Clean data
             data = data.dropna()
             
+            # Convert USD prices to INR
+            usd_to_inr = _self.get_usd_to_inr_rate()
+            price_columns = ['Open', 'High', 'Low', 'Close']
+            for col in price_columns:
+                if col in data.columns:
+                    data[col] = data[col] * usd_to_inr
+            
             return data
             
         except Exception as e:
@@ -56,19 +94,29 @@ class DataFetcher:
             return pd.DataFrame()
     
     def get_real_time_price(self, symbol: str) -> dict:
-        """Get real-time price data"""
+        """Get real-time cryptocurrency price data in INR"""
         try:
+            # Ensure crypto symbol format
+            if not symbol.endswith('-USD'):
+                symbol = f"{symbol}-USD"
+                
             ticker = yf.Ticker(symbol)
             info = ticker.info
             
+            # Get USD to INR rate
+            usd_to_inr = self.get_usd_to_inr_rate()
+            
+            price_usd = info.get('currentPrice', info.get('regularMarketPrice', 0))
+            change_usd = info.get('regularMarketChange', 0)
+            
             return {
-                'symbol': symbol,
-                'price': info.get('currentPrice', info.get('regularMarketPrice', 0)),
-                'change': info.get('regularMarketChange', 0),
+                'symbol': symbol.replace('-USD', ''),
+                'price': price_usd * usd_to_inr,
+                'change': change_usd * usd_to_inr,
                 'change_percent': info.get('regularMarketChangePercent', 0),
                 'volume': info.get('regularMarketVolume', 0),
-                'market_cap': info.get('marketCap', 0),
-                'pe_ratio': info.get('trailingPE', 0)
+                'market_cap': info.get('marketCap', 0) * usd_to_inr if info.get('marketCap') else 0,
+                'currency': 'INR'
             }
             
         except Exception as e:
@@ -127,35 +175,48 @@ class DataFetcher:
             return {}
     
     def get_trending_symbols(self) -> list:
-        """Get trending symbols (predefined list for reliability)"""
-        # Popular symbols that usually have good data
+        """Get popular cryptocurrency symbols for trading"""
+        # Popular crypto symbols that usually have good data
         trending = [
-            'AAPL', 'GOOGL', 'MSFT', 'AMZN', 'TSLA',
-            'META', 'NFLX', 'NVDA', 'AMD', 'BABA',
-            'SPY', 'QQQ', 'IWM', 'GLD', 'TLT'
+            'BTC', 'ETH', 'BNB', 'XRP', 'ADA',
+            'SOL', 'DOGE', 'DOT', 'AVAX', 'SHIB',
+            'MATIC', 'LTC', 'LINK', 'UNI', 'ATOM'
         ]
         
         return trending
     
-    def get_crypto_data(self, symbol: str, period: str = "1mo", interval: str = "1h") -> pd.DataFrame:
-        """Fetch cryptocurrency data"""
+    def validate_crypto_symbol(self, symbol: str) -> bool:
+        """Validate if a crypto symbol exists and has data"""
         try:
-            # Add -USD suffix for crypto symbols
             if not symbol.endswith('-USD'):
                 symbol = f"{symbol}-USD"
+                
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
             
-            return self.get_data(symbol, period, interval)
+            # Check if we get valid info back
+            return 'regularMarketPrice' in info or 'currentPrice' in info
             
-        except Exception as e:
-            st.error(f"Error fetching crypto data for {symbol}: {str(e)}")
-            return pd.DataFrame()
+        except:
+            return False
     
-    def get_forex_data(self, base: str, quote: str, period: str = "1mo", interval: str = "1h") -> pd.DataFrame:
-        """Fetch forex data"""
+    def get_crypto_info(self, symbol: str) -> dict:
+        """Get cryptocurrency information"""
         try:
-            symbol = f"{base}{quote}=X"
-            return self.get_data(symbol, period, interval)
+            if not symbol.endswith('-USD'):
+                symbol = f"{symbol}-USD"
+                
+            ticker = yf.Ticker(symbol)
+            info = ticker.info
+            
+            return {
+                'name': info.get('longName', symbol.replace('-USD', '')),
+                'symbol': symbol.replace('-USD', ''),
+                'description': info.get('longBusinessSummary', 'Cryptocurrency')[:500] + '...',
+                'website': info.get('website', ''),
+                'market_cap_rank': info.get('marketCapRank', 0)
+            }
             
         except Exception as e:
-            st.error(f"Error fetching forex data for {base}/{quote}: {str(e)}")
-            return pd.DataFrame()
+            st.error(f"Error fetching crypto info for {symbol}: {str(e)}")
+            return {}

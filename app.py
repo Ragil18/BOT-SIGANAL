@@ -13,15 +13,15 @@ from backtester import Backtester
 
 # Page configuration
 st.set_page_config(
-    page_title="Trading Signal Bot",
-    page_icon="📈",
+    page_title="Crypto Trading Signal Bot",
+    page_icon="₿",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # Initialize session state
 if 'watchlist' not in st.session_state:
-    st.session_state.watchlist = ['AAPL', 'GOOGL', 'MSFT', 'TSLA', 'AMZN']
+    st.session_state.watchlist = ['BTC', 'ETH', 'BNB', 'XRP', 'ADA']
 if 'signals_history' not in st.session_state:
     st.session_state.signals_history = []
 if 'alerts' not in st.session_state:
@@ -34,8 +34,13 @@ signal_generator = SignalGenerator()
 backtester = Backtester()
 
 def main():
-    st.title("📈 Trading Signal Bot")
+    st.title("₿ Crypto Trading Signal Bot")
+    st.markdown("**Real-time cryptocurrency analysis with signals in Indian Rupees (INR)**")
     st.markdown("---")
+    
+    # Display current USD/INR rate
+    usd_to_inr = data_fetcher.get_usd_to_inr_rate()
+    st.sidebar.info(f"💱 USD to INR: ₹{usd_to_inr:.2f}")
     
     # Sidebar for navigation and settings
     with st.sidebar:
@@ -48,7 +53,7 @@ def main():
         )
         
         # Symbol selection
-        symbol = st.text_input("Symbol", value="AAPL", help="Enter stock symbol (e.g., AAPL, GOOGL)")
+        symbol = st.text_input("Symbol", value="BTC", help="Enter crypto symbol (e.g., BTC, ETH, ADA)")
         
         # Timeframe selection
         timeframe = st.selectbox(
@@ -134,7 +139,7 @@ def show_live_signals(symbol, timeframe, period, indicator_params, signal_thresh
         with col1:
             st.metric(
                 label="Current Price",
-                value=f"${current_price:.2f}",
+                value=f"₹{current_price:,.2f}",
                 delta=f"{((current_price - data['Close'].iloc[-2]) / data['Close'].iloc[-2] * 100):.2f}%"
             )
         
@@ -238,7 +243,7 @@ def show_backtesting(symbol, timeframe, period, indicator_params, signal_thresho
             max_value=datetime.now()
         )
     
-    initial_capital = st.number_input("Initial Capital ($)", min_value=1000, value=10000, step=1000)
+    initial_capital = st.number_input("Initial Capital (₹)", min_value=50000, value=500000, step=50000)
     
     if st.button("Run Backtest"):
         try:
@@ -266,7 +271,7 @@ def show_backtesting(symbol, timeframe, period, indicator_params, signal_thresho
                     st.metric(
                         "Total Return",
                         f"{results['total_return']:.2f}%",
-                        delta=f"${results['final_value'] - initial_capital:.2f}"
+                        delta=f"₹{results['final_value'] - initial_capital:,.2f}"
                     )
                 
                 with col2:
@@ -326,7 +331,7 @@ def show_backtesting(symbol, timeframe, period, indicator_params, signal_thresho
                 portfolio_fig.update_layout(
                     title="Portfolio Value Over Time",
                     xaxis_title="Date",
-                    yaxis_title="Portfolio Value ($)",
+                    yaxis_title="Portfolio Value (₹)",
                     hovermode='x unified'
                 )
                 
@@ -349,7 +354,7 @@ def show_watchlist():
     # Add new symbol
     col1, col2 = st.columns([3, 1])
     with col1:
-        new_symbol = st.text_input("Add Symbol", placeholder="Enter symbol (e.g., AAPL)")
+        new_symbol = st.text_input("Add Crypto Symbol", placeholder="Enter crypto symbol (e.g., BTC, ETH, ADA)")
     with col2:
         if st.button("Add"):
             if new_symbol and new_symbol.upper() not in st.session_state.watchlist:
@@ -384,7 +389,7 @@ def show_watchlist():
                             st.write(f"**{symbol}**")
                         
                         with col2:
-                            st.write(f"${current_price:.2f}")
+                            st.write(f"₹{current_price:,.2f}")
                         
                         with col3:
                             color = "red" if price_change < 0 else "green"
@@ -700,7 +705,7 @@ def create_chart(data, indicators, signals):
     )
     
     # Update y-axis labels
-    fig.update_yaxes(title_text="Price ($)", row=1, col=1)
+    fig.update_yaxes(title_text="Price (₹)", row=1, col=1)
     fig.update_yaxes(title_text="Volume", row=2, col=1)
     fig.update_yaxes(title_text="RSI", row=3, col=1, range=[0, 100])
     fig.update_yaxes(title_text="MACD", row=4, col=1)

@@ -1,12 +1,14 @@
-# Trading Signal Bot
+# Crypto Trading Signal Bot
 
 ## Overview
 
-This is a Streamlit-based trading signal bot that provides live market analysis, technical indicators, and backtesting capabilities for stock trading. The application fetches real-time market data, calculates various technical indicators, generates trading signals, and allows users to backtest strategies on historical data.
+This is a Streamlit-based cryptocurrency trading signal bot that provides live market analysis, technical indicators, and backtesting capabilities specifically for cryptocurrency trading. The application fetches real-time crypto market data, calculates various technical indicators, generates trading signals, and allows users to backtest strategies on historical data. All prices are displayed in Indian Rupees (INR) for local relevance.
 
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
+Currency preference: Indian Rupees (INR) for all price displays.
+Market focus: Cryptocurrencies only (Bitcoin, Ethereum, etc.).
 
 ## System Architecture
 
@@ -27,10 +29,11 @@ The application follows a modular architecture with separate components for diff
 - **State Management**: Session-based storage for watchlists, signals history, and alerts
 
 ### 2. Data Fetcher (data_fetcher.py)
-- **Purpose**: Market data acquisition and caching
-- **Data Source**: Yahoo Finance (yfinance library)
+- **Purpose**: Cryptocurrency market data acquisition and INR conversion
+- **Data Source**: Yahoo Finance (yfinance library) for crypto symbols
+- **Currency Conversion**: Automatic USD to INR conversion using live exchange rates
 - **Caching Strategy**: 5-minute TTL caching to reduce API calls
-- **Data Types**: Real-time and historical OHLCV data with configurable intervals
+- **Data Types**: Real-time and historical cryptocurrency OHLCV data with INR pricing
 
 ### 3. Technical Indicators (technical_indicators.py)
 - **Purpose**: Mathematical analysis of price and volume data
@@ -77,9 +80,10 @@ The application follows a modular architecture with separate components for diff
 - **plotly**: Interactive charting and visualization
 
 ### Data Sources
-- **Yahoo Finance**: Primary market data provider
-- **Real-time Data**: Intraday price and volume information
-- **Historical Data**: Extended periods for backtesting
+- **Yahoo Finance**: Primary cryptocurrency market data provider
+- **USD/INR Exchange**: Live exchange rate for currency conversion
+- **Real-time Data**: Intraday cryptocurrency price and volume information in INR
+- **Historical Data**: Extended periods for crypto backtesting with INR pricing
 
 ## Deployment Strategy
 
