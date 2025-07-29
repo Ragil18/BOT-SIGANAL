@@ -65,10 +65,10 @@ class SignalGenerator:
         signals.loc[sell_condition, 'signal'] = 'SELL'
         
         # Add reasoning
-        signals['reason'] = self._generate_scalp_reasons(
-            signals, indicators, fast_rsi_signals, macd_signals, 
-            bb_signals, scalp_trend_signals, stoch_signals, williams_signals, 
-            volume_signals, velocity_signals
+        signals['reason'] = self._generate_swing_reasons(
+            signals, indicators, rsi_signals, macd_signals, 
+            bb_signals, swing_trend_signals, stoch_signals, williams_signals, 
+            volume_signals, momentum_signals
         )
         
         return signals
@@ -326,35 +326,35 @@ class SignalGenerator:
         
         return np.clip(signals, -1, 1)
     
-    def _generate_scalp_reasons(self, signals: pd.DataFrame, indicators: pd.DataFrame,
-                               fast_rsi_signals: pd.Series, macd_signals: pd.Series,
-                               bb_signals: pd.Series, scalp_trend_signals: pd.Series,
+    def _generate_swing_reasons(self, signals: pd.DataFrame, indicators: pd.DataFrame,
+                               rsi_signals: pd.Series, macd_signals: pd.Series,
+                               bb_signals: pd.Series, swing_trend_signals: pd.Series,
                                stoch_signals: pd.Series, williams_signals: pd.Series,
-                               volume_signals: pd.Series, velocity_signals: pd.Series) -> pd.Series:
-        """Generate human-readable reasons for signals"""
+                               volume_signals: pd.Series, momentum_signals: pd.Series) -> pd.Series:
+        """Generate human-readable reasons for swing trading signals"""
         reasons = pd.Series('', index=signals.index)
         
         for idx in signals.index[signals['signal'] != 'HOLD']:
             reason_parts = []
             
-            if abs(fast_rsi_signals[idx]) > 0.5:
-                rsi_val = indicators.get('rsi_fast', indicators.get('rsi', pd.Series(50, index=indicators.index)))[idx]
-                if fast_rsi_signals[idx] > 0:
-                    reason_parts.append(f"Fast RSI oversold ({rsi_val:.1f})")
+            if abs(rsi_signals[idx]) > 0.5:
+                rsi_val = indicators.get('rsi', pd.Series(50, index=indicators.index))[idx]
+                if rsi_signals[idx] > 0:
+                    reason_parts.append(f"RSI oversold ({rsi_val:.1f})")
                 else:
-                    reason_parts.append(f"Fast RSI overbought ({rsi_val:.1f})")
+                    reason_parts.append(f"RSI overbought ({rsi_val:.1f})")
             
             if abs(macd_signals[idx]) > 0.5:
                 if macd_signals[idx] > 0:
-                    reason_parts.append("MACD scalp bullish")
+                    reason_parts.append("MACD swing bullish")
                 else:
-                    reason_parts.append("MACD scalp bearish")
+                    reason_parts.append("MACD swing bearish")
             
-            if abs(scalp_trend_signals[idx]) > 0.6:
-                if scalp_trend_signals[idx] > 0:
-                    reason_parts.append("Scalp trend UP")
+            if abs(swing_trend_signals[idx]) > 0.4:
+                if swing_trend_signals[idx] > 0:
+                    reason_parts.append("Swing trend UP")
                 else:
-                    reason_parts.append("Scalp trend DOWN")
+                    reason_parts.append("Swing trend DOWN")
             
             if abs(williams_signals[idx]) > 0.6:
                 if williams_signals[idx] > 0:
@@ -362,16 +362,16 @@ class SignalGenerator:
                 else:
                     reason_parts.append("Williams %R overbought")
             
-            if abs(velocity_signals[idx]) > 0.5:
-                if velocity_signals[idx] > 0:
-                    reason_parts.append("Strong upward momentum")
+            if abs(momentum_signals[idx]) > 0.3:
+                if momentum_signals[idx] > 0:
+                    reason_parts.append("Positive momentum")
                 else:
-                    reason_parts.append("Strong downward momentum")
+                    reason_parts.append("Negative momentum")
             
             if abs(volume_signals[idx]) > 0.3:
-                reason_parts.append("Volume spike")
+                reason_parts.append("Volume confirmation")
             
-            reasons[idx] = "; ".join(reason_parts) if reason_parts else "Scalp signals aligned"
+            reasons[idx] = "; ".join(reason_parts) if reason_parts else "Swing signals aligned"
         
         return reasons
     
