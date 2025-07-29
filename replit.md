@@ -2,13 +2,14 @@
 
 ## Overview
 
-This is a Streamlit-based cryptocurrency trading signal bot that provides live market analysis, technical indicators, and backtesting capabilities specifically for cryptocurrency trading. The application fetches real-time crypto market data, calculates various technical indicators, generates trading signals, and allows users to backtest strategies on historical data. All prices are displayed in Indian Rupees (INR) for local relevance.
+This is a Streamlit-based cryptocurrency swing trading signal bot that provides live market analysis, technical indicators, and backtesting capabilities specifically for swing trading cryptocurrencies. The application fetches real-time crypto market data, calculates swing trading indicators, generates medium-term trading signals, and allows users to backtest swing strategies on historical data. All prices are displayed in Indian Rupees (INR) for local relevance.
 
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
 Currency preference: Indian Rupees (INR) for all price displays.
 Market focus: Cryptocurrencies only (Bitcoin, Ethereum, etc.).
+Trading style: Swing trading (3-10 day holding periods).
 
 ## System Architecture
 

@@ -9,79 +9,80 @@ class TechnicalIndicators:
         pass
     
     def calculate_all(self, data: pd.DataFrame, params: Dict[str, Any]) -> pd.DataFrame:
-        """Calculate all technical indicators optimized for scalp trading"""
+        """Calculate all technical indicators optimized for swing trading"""
         indicators = pd.DataFrame(index=data.index)
         
-        # Fast RSI for scalping
-        indicators['rsi'] = self.calculate_rsi(data['Close'], params.get('rsi_period', 7))
-        indicators['rsi_fast'] = self.calculate_rsi(data['Close'], 5)  # Very fast RSI
+        # RSI for swing trading
+        indicators['rsi'] = self.calculate_rsi(data['Close'], params.get('rsi_period', 14))
+        indicators['rsi_fast'] = self.calculate_rsi(data['Close'], 9)  # Faster RSI for entries
+        indicators['rsi_slow'] = self.calculate_rsi(data['Close'], 25)  # Slower for trend
         
-        # MACD with faster settings
+        # MACD with standard swing settings
         macd_data = self.calculate_macd(
             data['Close'], 
-            params.get('macd_fast', 5), 
-            params.get('macd_slow', 13), 
-            params.get('macd_signal', 5)
+            params.get('macd_fast', 12), 
+            params.get('macd_slow', 26), 
+            params.get('macd_signal', 9)
         )
         indicators = indicators.join(macd_data)
         
-        # Bollinger Bands with tighter settings
+        # Bollinger Bands with standard settings
         bb_data = self.calculate_bollinger_bands(
             data['Close'], 
-            params.get('bb_period', 10), 
-            params.get('bb_std', 1.5)
+            params.get('bb_period', 20), 
+            params.get('bb_std', 2.0)
         )
         indicators = indicators.join(bb_data)
         
-        # Fast Moving Averages for scalping
-        indicators['ema_5'] = self.calculate_ema(data['Close'], 5)
-        indicators['ema_8'] = self.calculate_ema(data['Close'], 8)
-        indicators['ema_13'] = self.calculate_ema(data['Close'], 13)
+        # Moving Averages for swing trend analysis
+        indicators['ema_9'] = self.calculate_ema(data['Close'], 9)
         indicators['ema_21'] = self.calculate_ema(data['Close'], 21)
-        indicators['sma_9'] = self.calculate_sma(data['Close'], 9)
+        indicators['ema_50'] = self.calculate_ema(data['Close'], 50)
+        indicators['ema_200'] = self.calculate_ema(data['Close'], 200)  # Long-term trend
+        indicators['sma_50'] = self.calculate_sma(data['Close'], 50)
         
-        # Fast Stochastic for scalping
-        stoch_data = self.calculate_stochastic(data, 5, 3, 3)
+        # Stochastic with standard swing settings
+        stoch_data = self.calculate_stochastic(data, 14, 3, 3)
         indicators = indicators.join(stoch_data)
         
-        # Williams %R for scalping
+        # Williams %R for swing momentum
         indicators['williams_r'] = self.calculate_williams_r(data, 14)
         
-        # CCI (Commodity Channel Index) for scalping
-        indicators['cci'] = self.calculate_cci(data, 14)
+        # CCI for swing reversals
+        indicators['cci'] = self.calculate_cci(data, 20)
         
-        # Average True Range for volatility
+        # Average True Range for swing volatility
         indicators['atr'] = self.calculate_atr(data, 14)
         
-        # Volume indicators
-        indicators['volume_sma'] = self.calculate_sma(data['Volume'], 10)
+        # Volume indicators for swing analysis
+        indicators['volume_sma'] = self.calculate_sma(data['Volume'], 50)  # Longer average
         indicators['volume_ratio'] = data['Volume'] / indicators['volume_sma']
         
-        # Price momentum for scalping
-        indicators['momentum'] = self.calculate_momentum(data['Close'], 3)
-        indicators['roc'] = self.calculate_roc(data['Close'], 5)
+        # Price momentum for swing trading
+        indicators['momentum'] = self.calculate_momentum(data['Close'], 10)  # Medium-term
+        indicators['roc'] = self.calculate_roc(data['Close'], 12)  # Rate of change
         
-        # VWAP (Volume Weighted Average Price)
+        # VWAP for swing levels
         indicators['vwap'] = self.calculate_vwap(data)
         
-        # Scalping specific indicators
-        indicators['scalp_trend'] = self.calculate_scalp_trend(data)
-        indicators['price_velocity'] = self.calculate_price_velocity(data['Close'])
+        # Swing trading specific indicators
+        indicators['swing_trend'] = self.calculate_swing_trend(data)
+        indicators['price_momentum'] = self.calculate_price_momentum(data['Close'])
         
-        # Advanced scalping enhancements (simplified for stability)
+        # Advanced swing trading enhancements
         try:
-            indicators['squeeze_momentum'] = self.calculate_squeeze_momentum(data)
-            indicators['market_structure'] = self.calculate_market_structure(data)
-            indicators['volume_profile'] = self.calculate_volume_profile(data)
-            indicators['volatility_ratio'] = self.calculate_volatility_ratio(data)
             indicators['trend_strength'] = self.calculate_trend_strength(data)
+            indicators['support_resistance'] = self.calculate_support_resistance(data)
+            indicators['breakout_signal'] = self.calculate_breakout_signal(data)
+            indicators['volatility_ratio'] = self.calculate_volatility_ratio(data)
+            indicators['volume_trend'] = self.calculate_volume_trend(data)
         except:
             # Fallback values if advanced indicators fail
-            indicators['squeeze_momentum'] = pd.Series(0, index=data.index)
-            indicators['market_structure'] = pd.Series(0, index=data.index)
-            indicators['volume_profile'] = pd.Series(1, index=data.index)
-            indicators['volatility_ratio'] = pd.Series(1, index=data.index)
             indicators['trend_strength'] = pd.Series(0, index=data.index)
+            indicators['support_resistance'] = pd.Series(0, index=data.index)
+            indicators['breakout_signal'] = pd.Series(0, index=data.index)
+            indicators['volatility_ratio'] = pd.Series(1, index=data.index)
+            indicators['volume_trend'] = pd.Series(0, index=data.index)
         
         return indicators
     
@@ -305,3 +306,49 @@ class TechnicalIndicators:
         
         # Smooth the signal
         return trend_strength.rolling(3).mean()
+    
+    def calculate_swing_trend(self, data: pd.DataFrame) -> pd.Series:
+        """Calculate swing trend direction using EMA crossovers"""
+        # Use EMAs appropriate for swing trading
+        ema_9 = self.calculate_ema(data['Close'], 9)
+        ema_21 = self.calculate_ema(data['Close'], 21)
+        
+        trend = pd.Series(0, index=data.index)
+        trend[ema_9 > ema_21] = 1   # Uptrend
+        trend[ema_9 < ema_21] = -1  # Downtrend
+        
+        return trend
+    
+    def calculate_price_momentum(self, prices: pd.Series, period: int = 10) -> pd.Series:
+        """Calculate price momentum for swing trading"""
+        return prices.diff(period) / period
+    
+    def calculate_support_resistance(self, data: pd.DataFrame, window: int = 20) -> pd.Series:
+        """Identify support and resistance levels for swing trading"""
+        high_rolling = data['High'].rolling(window=window, center=True).max()
+        low_rolling = data['Low'].rolling(window=window, center=True).min()
+        
+        # Find pivot points
+        resistance = (data['High'] == high_rolling).astype(int)
+        support = (data['Low'] == low_rolling).astype(int) * -1
+        
+        return resistance + support
+    
+    def calculate_breakout_signal(self, data: pd.DataFrame, period: int = 20) -> pd.Series:
+        """Calculate breakout signals for swing trading"""
+        high_max = data['High'].rolling(period).max()
+        low_min = data['Low'].rolling(period).min()
+        
+        breakout = pd.Series(0, index=data.index)
+        breakout[data['Close'] > high_max.shift(1)] = 1   # Upward breakout
+        breakout[data['Close'] < low_min.shift(1)] = -1   # Downward breakout
+        
+        return breakout
+    
+    def calculate_volume_trend(self, data: pd.DataFrame, period: int = 20) -> pd.Series:
+        """Calculate volume trend for swing confirmation"""
+        volume_sma = self.calculate_sma(data['Volume'], period)
+        volume_trend = data['Volume'] / volume_sma
+        
+        # Smooth the trend
+        return volume_trend.rolling(5).mean()

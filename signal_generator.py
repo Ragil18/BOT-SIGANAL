@@ -6,51 +6,48 @@ class SignalGenerator:
     """Class for generating trading signals based on technical indicators"""
     
     def __init__(self):
-        # Enhanced weights for advanced scalp trading
+        # Enhanced weights for swing trading
         self.signal_weights = {
-            'fast_rsi': 0.18,
-            'macd': 0.18,
-            'bollinger': 0.12,
-            'scalp_trend': 0.15,
-            'stochastic': 0.10,
-            'williams_r': 0.08,
-            'volume': 0.05,
-            'velocity': 0.04,
-            'squeeze_momentum': 0.05,
-            'market_structure': 0.03,
-            'trend_strength': 0.02
+            'rsi': 0.20,
+            'macd': 0.25,  # Higher weight for trend following
+            'bollinger': 0.15,
+            'swing_trend': 0.15,
+            'stochastic': 0.08,
+            'williams_r': 0.06,
+            'volume': 0.04,
+            'momentum': 0.03,
+            'support_resistance': 0.02,
+            'breakout_signal': 0.02
         }
     
-    def generate_signals(self, data: pd.DataFrame, indicators: pd.DataFrame, threshold: float = 0.5) -> pd.DataFrame:
-        """Generate scalping-optimized trading signals"""
+    def generate_signals(self, data: pd.DataFrame, indicators: pd.DataFrame, threshold: float = 0.3) -> pd.DataFrame:
+        """Generate swing trading optimized signals"""
         signals = pd.DataFrame(index=data.index)
         
-        # Calculate individual signal components for scalping
-        fast_rsi_signals = self._fast_rsi_signals(indicators)
+        # Calculate individual signal components for swing trading
+        rsi_signals = self._rsi_signals(indicators)
         macd_signals = self._macd_signals(indicators)
         bb_signals = self._bollinger_signals(data, indicators)
-        scalp_trend_signals = self._scalp_trend_signals(indicators)
+        swing_trend_signals = self._swing_trend_signals(indicators)
         stoch_signals = self._stochastic_signals(indicators)
         williams_signals = self._williams_r_signals(indicators)
         volume_signals = self._volume_signals(data, indicators)
-        velocity_signals = self._velocity_signals(indicators)
-        squeeze_signals = self._squeeze_momentum_signals(indicators)
-        structure_signals = self._market_structure_signals(indicators)
-        trend_strength_signals = self._trend_strength_signals(indicators)
+        momentum_signals = self._momentum_signals(indicators)
+        support_resistance_signals = self._support_resistance_signals(indicators)
+        breakout_signals = self._breakout_signals(indicators)
         
-        # Combine signals with enhanced scalping weights
+        # Combine signals with swing trading weights
         combined_score = (
-            fast_rsi_signals * self.signal_weights['fast_rsi'] +
+            rsi_signals * self.signal_weights['rsi'] +
             macd_signals * self.signal_weights['macd'] +
             bb_signals * self.signal_weights['bollinger'] +
-            scalp_trend_signals * self.signal_weights['scalp_trend'] +
+            swing_trend_signals * self.signal_weights['swing_trend'] +
             stoch_signals * self.signal_weights['stochastic'] +
             williams_signals * self.signal_weights['williams_r'] +
             volume_signals * self.signal_weights['volume'] +
-            velocity_signals * self.signal_weights['velocity'] +
-            squeeze_signals * self.signal_weights['squeeze_momentum'] +
-            structure_signals * self.signal_weights['market_structure'] +
-            trend_strength_signals * self.signal_weights['trend_strength']
+            momentum_signals * self.signal_weights['momentum'] +
+            support_resistance_signals * self.signal_weights['support_resistance'] +
+            breakout_signals * self.signal_weights['breakout_signal']
         )
         
         # Generate final signals
@@ -76,24 +73,24 @@ class SignalGenerator:
         
         return signals
     
-    def _fast_rsi_signals(self, indicators: pd.DataFrame) -> pd.Series:
-        """Generate fast RSI signals for scalping"""
-        rsi = indicators.get('rsi_fast', indicators.get('rsi', None))
+    def _rsi_signals(self, indicators: pd.DataFrame) -> pd.Series:
+        """Generate RSI signals for swing trading"""
+        rsi = indicators.get('rsi', None)
         if rsi is None or rsi.empty:
             return pd.Series(0.0, index=indicators.index)
             
         signals = pd.Series(0.0, index=indicators.index)
         
-        # More sensitive thresholds for scalping
-        signals[rsi < 25] = 1.0   # Strong buy
-        signals[rsi < 30] = 0.8   # Moderate buy
-        signals[rsi > 75] = -1.0  # Strong sell
-        signals[rsi > 70] = -0.8  # Moderate sell
+        # Standard swing trading RSI thresholds
+        signals[rsi < 30] = 0.8   # Oversold - buy signal
+        signals[rsi < 25] = 1.0   # Very oversold - strong buy
+        signals[rsi > 70] = -0.8  # Overbought - sell signal
+        signals[rsi > 75] = -1.0  # Very overbought - strong sell
         
-        # Fast momentum for scalping
-        rsi_momentum = rsi.diff(2)
-        signals[rsi_momentum > 8] += 0.4
-        signals[rsi_momentum < -8] -= 0.4
+        # RSI divergence detection for swing entries
+        rsi_momentum = rsi.diff(5)  # Longer period for swing
+        signals[rsi_momentum > 5] += 0.2
+        signals[rsi_momentum < -5] -= 0.2
         
         return signals.clip(-1, 1)
     
@@ -377,6 +374,69 @@ class SignalGenerator:
             reasons[idx] = "; ".join(reason_parts) if reason_parts else "Scalp signals aligned"
         
         return reasons
+    
+    def _swing_trend_signals(self, indicators: pd.DataFrame) -> pd.Series:
+        """Generate swing trend signals"""
+        swing_trend = indicators.get('swing_trend', pd.Series(0, index=indicators.index))
+        signals = pd.Series(0.0, index=indicators.index)
+        
+        # Medium-term trend following for swing trading
+        trend_changes = swing_trend.diff()
+        
+        signals[swing_trend > 0] = 0.6   # Uptrend
+        signals[swing_trend < 0] = -0.6  # Downtrend
+        
+        # Moderate boost on trend changes (less aggressive than scalping)
+        signals[trend_changes > 0] += 0.2
+        signals[trend_changes < 0] -= 0.2
+        
+        return signals
+    
+    def _momentum_signals(self, indicators: pd.DataFrame) -> pd.Series:
+        """Generate momentum signals for swing trading"""
+        momentum = indicators.get('momentum', None)
+        if momentum is None:
+            return pd.Series(0.0, index=indicators.index)
+            
+        signals = pd.Series(0.0, index=indicators.index)
+        
+        # Medium-term momentum thresholds
+        momentum_std = momentum.rolling(20).std()
+        threshold = momentum_std * 1.2
+        
+        signals[momentum > threshold] = 0.5   # Positive momentum
+        signals[momentum < -threshold] = -0.5  # Negative momentum
+        
+        return signals
+    
+    def _support_resistance_signals(self, indicators: pd.DataFrame) -> pd.Series:
+        """Generate support/resistance signals for swing trading"""
+        sr_levels = indicators.get('support_resistance', None)
+        if sr_levels is None:
+            return pd.Series(0.0, index=indicators.index)
+            
+        signals = pd.Series(0.0, index=indicators.index)
+        
+        # Support level buy signals
+        signals[sr_levels < 0] = 0.3  # Near support - potential buy
+        # Resistance level sell signals  
+        signals[sr_levels > 0] = -0.3  # Near resistance - potential sell
+        
+        return signals
+    
+    def _breakout_signals(self, indicators: pd.DataFrame) -> pd.Series:
+        """Generate breakout signals for swing trading"""
+        breakout = indicators.get('breakout_signal', None)
+        if breakout is None:
+            return pd.Series(0.0, index=indicators.index)
+            
+        signals = pd.Series(0.0, index=indicators.index)
+        
+        # Breakout signals for swing entries
+        signals[breakout > 0] = 0.7   # Upward breakout - buy
+        signals[breakout < 0] = -0.7  # Downward breakout - sell
+        
+        return signals
     
     def calculate_signal_strength(self, score: float) -> str:
         """Convert signal score to strength description"""
