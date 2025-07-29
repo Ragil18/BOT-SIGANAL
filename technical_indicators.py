@@ -68,6 +68,13 @@ class TechnicalIndicators:
         indicators['scalp_trend'] = self.calculate_scalp_trend(data)
         indicators['price_velocity'] = self.calculate_price_velocity(data['Close'])
         
+        # Advanced scalping enhancements
+        indicators['squeeze_momentum'] = self.calculate_squeeze_momentum(data)
+        indicators['market_structure'] = self.calculate_market_structure(data)
+        indicators['volume_profile'] = self.calculate_volume_profile(data)
+        indicators['volatility_ratio'] = self.calculate_volatility_ratio(data)
+        indicators['trend_strength'] = self.calculate_trend_strength(data)
+        
         return indicators
     
     def calculate_rsi(self, prices: pd.Series, period: int = 14) -> pd.Series:
@@ -199,3 +206,89 @@ class TechnicalIndicators:
     def calculate_price_velocity(self, prices: pd.Series, period: int = 3) -> pd.Series:
         """Calculate price velocity for scalping momentum"""
         return prices.diff(period) / period
+    
+    def calculate_squeeze_momentum(self, data: pd.DataFrame) -> pd.Series:
+        """Calculate TTM Squeeze momentum for scalping entries"""
+        bb_upper, bb_middle, bb_lower = self.calculate_bollinger_bands(data['Close'], 20, 2.0).values.T
+        kc_upper, kc_lower = self.calculate_keltner_channels(data)
+        
+        # Squeeze occurs when Bollinger Bands are inside Keltner Channels
+        squeeze = (bb_upper < kc_upper) & (bb_lower > kc_lower)
+        
+        # Momentum calculation
+        highest = data['High'].rolling(20).max()
+        lowest = data['Low'].rolling(20).min()
+        avg_price = (highest + lowest) / 2
+        momentum = data['Close'] - avg_price.shift(10)
+        
+        return pd.Series(np.where(squeeze, 0, momentum), index=data.index)
+    
+    def calculate_keltner_channels(self, data: pd.DataFrame, period: int = 20, multiplier: float = 2.0):
+        """Calculate Keltner Channels"""
+        ema = self.calculate_ema(data['Close'], period)
+        atr = self.calculate_atr(data, period)
+        
+        upper = ema + (multiplier * atr)
+        lower = ema - (multiplier * atr)
+        
+        return upper, lower
+    
+    def calculate_market_structure(self, data: pd.DataFrame) -> pd.Series:
+        """Identify market structure for scalping context"""
+        high_period = 5
+        low_period = 5
+        
+        # Higher highs and higher lows = uptrend
+        # Lower highs and lower lows = downtrend
+        
+        rolling_max = data['High'].rolling(high_period, center=True).max()
+        rolling_min = data['Low'].rolling(low_period, center=True).min()
+        
+        higher_highs = data['High'] > rolling_max.shift(1)
+        higher_lows = data['Low'] > rolling_min.shift(1)
+        lower_highs = data['High'] < rolling_max.shift(1)
+        lower_lows = data['Low'] < rolling_min.shift(1)
+        
+        structure = pd.Series(0.0, index=data.index)  # 0 = sideways
+        structure[(higher_highs & higher_lows)] = 1.0  # 1 = uptrend
+        structure[(lower_highs & lower_lows)] = -1.0   # -1 = downtrend
+        
+        return structure.fillna(method='ffill').fillna(0)
+    
+    def calculate_volume_profile(self, data: pd.DataFrame) -> pd.Series:
+        """Calculate volume profile strength"""
+        volume_sma = self.calculate_sma(data['Volume'], 20)
+        price_change = data['Close'].pct_change()
+        
+        # Volume-price relationship
+        volume_strength = data['Volume'] / volume_sma
+        price_volume_correlation = price_change.rolling(10).corr(volume_strength)
+        
+        return volume_strength * (1 + price_volume_correlation.fillna(0))
+    
+    def calculate_volatility_ratio(self, data: pd.DataFrame) -> pd.Series:
+        """Calculate volatility ratio for scalping timing"""
+        atr = self.calculate_atr(data, 14)
+        atr_avg = atr.rolling(50).mean()
+        
+        # Current volatility vs average volatility
+        volatility_ratio = atr / atr_avg
+        
+        return volatility_ratio
+    
+    def calculate_trend_strength(self, data: pd.DataFrame) -> pd.Series:
+        """Calculate trend strength using multiple EMAs"""
+        ema_5 = self.calculate_ema(data['Close'], 5)
+        ema_13 = self.calculate_ema(data['Close'], 13)
+        ema_21 = self.calculate_ema(data['Close'], 21)
+        
+        # Calculate trend alignment strength
+        bullish_strength = ((ema_5 > ema_13) & (ema_13 > ema_21) & 
+                           (data['Close'] > ema_5)).astype(int)
+        bearish_strength = ((ema_5 < ema_13) & (ema_13 < ema_21) & 
+                           (data['Close'] < ema_5)).astype(int)
+        
+        trend_strength = bullish_strength - bearish_strength
+        
+        # Smooth the signal
+        return trend_strength.rolling(3).mean()

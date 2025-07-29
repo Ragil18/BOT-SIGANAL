@@ -6,16 +6,19 @@ class SignalGenerator:
     """Class for generating trading signals based on technical indicators"""
     
     def __init__(self):
-        # Optimized weights for scalp trading
+        # Enhanced weights for advanced scalp trading
         self.signal_weights = {
-            'fast_rsi': 0.20,
-            'macd': 0.20,
-            'bollinger': 0.15,
+            'fast_rsi': 0.18,
+            'macd': 0.18,
+            'bollinger': 0.12,
             'scalp_trend': 0.15,
             'stochastic': 0.10,
-            'williams_r': 0.10,
+            'williams_r': 0.08,
             'volume': 0.05,
-            'velocity': 0.05
+            'velocity': 0.04,
+            'squeeze_momentum': 0.05,
+            'market_structure': 0.03,
+            'trend_strength': 0.02
         }
     
     def generate_signals(self, data: pd.DataFrame, indicators: pd.DataFrame, threshold: float = 0.5) -> pd.DataFrame:
@@ -31,8 +34,11 @@ class SignalGenerator:
         williams_signals = self._williams_r_signals(indicators)
         volume_signals = self._volume_signals(data, indicators)
         velocity_signals = self._velocity_signals(indicators)
+        squeeze_signals = self._squeeze_momentum_signals(indicators)
+        structure_signals = self._market_structure_signals(indicators)
+        trend_strength_signals = self._trend_strength_signals(indicators)
         
-        # Combine signals with scalping weights
+        # Combine signals with enhanced scalping weights
         combined_score = (
             fast_rsi_signals * self.signal_weights['fast_rsi'] +
             macd_signals * self.signal_weights['macd'] +
@@ -41,7 +47,10 @@ class SignalGenerator:
             stoch_signals * self.signal_weights['stochastic'] +
             williams_signals * self.signal_weights['williams_r'] +
             volume_signals * self.signal_weights['volume'] +
-            velocity_signals * self.signal_weights['velocity']
+            velocity_signals * self.signal_weights['velocity'] +
+            squeeze_signals * self.signal_weights['squeeze_momentum'] +
+            structure_signals * self.signal_weights['market_structure'] +
+            trend_strength_signals * self.signal_weights['trend_strength']
         )
         
         # Generate final signals
@@ -185,6 +194,40 @@ class SignalGenerator:
         
         signals[velocity > threshold] = 0.7   # Strong upward momentum
         signals[velocity < -threshold] = -0.7  # Strong downward momentum
+        
+        return signals
+    
+    def _squeeze_momentum_signals(self, indicators: pd.DataFrame) -> pd.Series:
+        """Generate squeeze momentum signals for scalping"""
+        squeeze = indicators.get('squeeze_momentum', pd.Series(0, index=indicators.index))
+        signals = pd.Series(0.0, index=indicators.index)
+        
+        # Momentum breakout signals
+        momentum_change = squeeze.diff()
+        signals[momentum_change > 0.5] = 0.8   # Positive momentum
+        signals[momentum_change < -0.5] = -0.8  # Negative momentum
+        
+        return signals
+    
+    def _market_structure_signals(self, indicators: pd.DataFrame) -> pd.Series:
+        """Generate market structure signals"""
+        structure = indicators.get('market_structure', pd.Series(0, index=indicators.index))
+        signals = pd.Series(0.0, index=indicators.index)
+        
+        # Structure alignment
+        signals[structure > 0] = 0.6   # Uptrend structure
+        signals[structure < 0] = -0.6  # Downtrend structure
+        
+        return signals
+    
+    def _trend_strength_signals(self, indicators: pd.DataFrame) -> pd.Series:
+        """Generate trend strength signals"""
+        strength = indicators.get('trend_strength', pd.Series(0, index=indicators.index))
+        signals = pd.Series(0.0, index=indicators.index)
+        
+        # Strong trend alignment
+        signals[strength > 0.8] = 0.7   # Strong bullish trend
+        signals[strength < -0.8] = -0.7  # Strong bearish trend
         
         return signals
     

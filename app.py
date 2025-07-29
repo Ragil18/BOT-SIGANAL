@@ -78,7 +78,7 @@ def main():
         # Navigation
         page = st.selectbox(
             "Navigate to:",
-            ["Live Signals", "Backtesting", "Watchlist", "Signal History"]
+            ["Live Signals", "Backtesting", "Watchlist", "Signal History", "Smart Alerts", "P&L Calculator"]
         )
         
         # Symbol selection
@@ -148,6 +148,12 @@ def main():
     
     elif page == "Signal History":
         show_signal_history()
+    
+    elif page == "Smart Alerts":
+        show_smart_alerts()
+    
+    elif page == "P&L Calculator":
+        show_pnl_calculator()
 
 def show_live_signals(symbol, timeframe, period, indicator_params, signal_threshold):
     st.header(f"Live Signals - {symbol}")
@@ -176,8 +182,8 @@ def show_live_signals(symbol, timeframe, period, indicator_params, signal_thresh
         last_update = data.index[-1]
         st.info(f"📊 Last updated: {last_update.strftime('%Y-%m-%d %H:%M:%S')} | Data refreshes every 1 minute")
         
-        # Display current status
-        col1, col2, col3 = st.columns(3)
+        # Enhanced scalping dashboard
+        col1, col2, col3, col4 = st.columns(4)
         
         with col1:
             st.metric(
@@ -220,6 +226,22 @@ def show_live_signals(symbol, timeframe, period, indicator_params, signal_thresh
                     label="Risk Level",
                     value=f"{risk_color} {risk_level}",
                     delta=f"Score: {current_signal['strength']:.2f}"
+                )
+        
+        with col4:
+            # Market volatility from ATR
+            if 'atr' in indicators.columns:
+                current_atr = indicators['atr'].iloc[-1]
+                avg_atr = indicators['atr'].rolling(20).mean().iloc[-1]
+                volatility_ratio = current_atr / avg_atr if avg_atr > 0 else 1.0
+                
+                vol_status = "HIGH" if volatility_ratio > 1.5 else "NORMAL" if volatility_ratio > 0.8 else "LOW"
+                vol_color = "🟠" if vol_status == "HIGH" else "🟢" if vol_status == "NORMAL" else "🔵"
+                
+                st.metric(
+                    label="Market Volatility",
+                    value=f"{vol_color} {vol_status}",
+                    delta=f"Ratio: {volatility_ratio:.2f}"
                 )
         
         # Chart
@@ -860,6 +882,213 @@ def create_chart(data, indicators, signals):
     fig.update_yaxes(title_text="MACD", row=4, col=1)
     
     return fig
+
+def show_smart_alerts():
+    """Smart alert system for scalping opportunities"""
+    st.header("🔔 Smart Scalping Alerts")
+    
+    # Alert configuration
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Create New Alert")
+        alert_symbol = st.text_input("Symbol", value="BTC", key="alert_symbol")
+        alert_type = st.selectbox("Alert Type", [
+            "Price Target", 
+            "RSI Overbought/Oversold", 
+            "Volume Spike", 
+            "Squeeze Breakout",
+            "Trend Change"
+        ])
+        
+        if alert_type == "Price Target":
+            target_price = st.number_input("Target Price (₹)", min_value=0.0, step=1000.0)
+            alert_condition = st.selectbox("Condition", ["Above", "Below"])
+        elif alert_type == "RSI Overbought/Oversold":
+            rsi_level = st.slider("RSI Level", 10, 90, 30)
+            alert_condition = st.selectbox("Condition", ["Below (Oversold)", "Above (Overbought)"])
+        elif alert_type == "Volume Spike":
+            volume_multiplier = st.slider("Volume Multiplier", 1.5, 5.0, 2.0, 0.1)
+        elif alert_type == "Squeeze Breakout":
+            st.info("Alert triggers when squeeze momentum changes direction")
+        elif alert_type == "Trend Change":
+            st.info("Alert triggers when market structure changes")
+        
+        if st.button("Create Alert"):
+            alert_data = {
+                'id': len(st.session_state.alerts),
+                'symbol': alert_symbol,
+                'type': alert_type,
+                'created': datetime.now(),
+                'active': True
+            }
+            
+            if alert_type == "Price Target":
+                alert_data['target_price'] = target_price
+                alert_data['condition'] = alert_condition
+            elif alert_type == "RSI Overbought/Oversold":
+                alert_data['rsi_level'] = rsi_level
+                alert_data['condition'] = alert_condition
+            elif alert_type == "Volume Spike":
+                alert_data['volume_multiplier'] = volume_multiplier
+            
+            st.session_state.alerts.append(alert_data)
+            st.success(f"Alert created for {alert_symbol}!")
+    
+    with col2:
+        st.subheader("Active Alerts")
+        if st.session_state.alerts:
+            for i, alert in enumerate(st.session_state.alerts):
+                if alert['active']:
+                    with st.expander(f"{alert['symbol']} - {alert['type']}"):
+                        st.write(f"Created: {alert['created'].strftime('%Y-%m-%d %H:%M')}")
+                        
+                        # Check alert conditions (simplified)
+                        try:
+                            current_data = data_fetcher.get_data(alert['symbol'], "1d", "5m")
+                            if not current_data.empty:
+                                current_price = current_data['Close'].iloc[-1]
+                                st.write(f"Current Price: ₹{current_price:,.2f}")
+                                
+                                # Alert logic would go here
+                                if alert['type'] == "Price Target":
+                                    if alert['condition'] == "Above" and current_price > alert.get('target_price', 0):
+                                        st.error("🚨 ALERT TRIGGERED!")
+                                    elif alert['condition'] == "Below" and current_price < alert.get('target_price', 0):
+                                        st.error("🚨 ALERT TRIGGERED!")
+                        except:
+                            st.write("Unable to check alert condition")
+                        
+                        if st.button(f"Delete", key=f"delete_{i}"):
+                            st.session_state.alerts[i]['active'] = False
+                            st.rerun()
+        else:
+            st.info("No active alerts. Create one to get started!")
+    
+    # Alert history
+    st.subheader("Alert History")
+    if st.session_state.alerts:
+        alerts_df = pd.DataFrame([alert for alert in st.session_state.alerts])
+        st.dataframe(alerts_df, use_container_width=True)
+
+def show_pnl_calculator():
+    """Profit & Loss calculator for scalping trades"""
+    st.header("💰 Scalping P&L Calculator")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Trade Parameters")
+        
+        # Basic trade info
+        entry_price = st.number_input("Entry Price (₹)", min_value=0.0, step=0.01, format="%.2f")
+        exit_price = st.number_input("Exit Price (₹)", min_value=0.0, step=0.01, format="%.2f")
+        quantity = st.number_input("Quantity", min_value=0.0, step=0.001, format="%.6f")
+        
+        # Trading costs
+        st.subheader("Trading Costs")
+        trading_fee = st.slider("Trading Fee (%)", 0.0, 1.0, 0.1, 0.01)
+        slippage = st.slider("Slippage (%)", 0.0, 0.5, 0.02, 0.01)
+        
+        # Trade type
+        trade_type = st.selectbox("Trade Type", ["Long", "Short"])
+        
+    with col2:
+        st.subheader("P&L Analysis")
+        
+        if entry_price > 0 and exit_price > 0 and quantity > 0:
+            # Calculate P&L
+            if trade_type == "Long":
+                gross_pnl = (exit_price - entry_price) * quantity
+            else:
+                gross_pnl = (entry_price - exit_price) * quantity
+            
+            # Calculate costs
+            entry_cost = entry_price * quantity * (trading_fee / 100)
+            exit_cost = exit_price * quantity * (trading_fee / 100)
+            slippage_cost = (entry_price + exit_price) * quantity * (slippage / 100)
+            total_costs = entry_cost + exit_cost + slippage_cost
+            
+            # Net P&L
+            net_pnl = gross_pnl - total_costs
+            
+            # Trade value
+            trade_value = entry_price * quantity
+            pnl_percentage = (net_pnl / trade_value) * 100 if trade_value > 0 else 0
+            
+            # Display results
+            st.metric("Gross P&L", f"₹{gross_pnl:,.2f}")
+            st.metric("Total Costs", f"₹{total_costs:,.2f}")
+            
+            if net_pnl >= 0:
+                st.success(f"Net Profit: ₹{net_pnl:,.2f} ({pnl_percentage:+.2f}%)")
+            else:
+                st.error(f"Net Loss: ₹{net_pnl:,.2f} ({pnl_percentage:+.2f}%)")
+            
+            # Breakdown
+            st.subheader("Cost Breakdown")
+            st.write(f"Entry Fee: ₹{entry_cost:.2f}")
+            st.write(f"Exit Fee: ₹{exit_cost:.2f}")
+            st.write(f"Slippage: ₹{slippage_cost:.2f}")
+            
+            # Risk metrics
+            st.subheader("Risk Metrics")
+            if trade_value > 0:
+                risk_reward = abs(net_pnl / trade_value) if trade_value > 0 else 0
+                st.write(f"Risk/Reward Ratio: {risk_reward:.2f}")
+                st.write(f"Trade Size: ₹{trade_value:,.2f}")
+                
+                # Break-even calculation
+                if trade_type == "Long":
+                    breakeven_price = entry_price + (total_costs / quantity)
+                else:
+                    breakeven_price = entry_price - (total_costs / quantity)
+                st.write(f"Break-even Price: ₹{breakeven_price:.2f}")
+    
+    # Batch calculator
+    st.markdown("---")
+    st.subheader("📊 Multiple Trades Analysis")
+    
+    if st.button("Analyze Session Trades"):
+        if st.session_state.signals_history:
+            # Simulate P&L for recent signals
+            trades_data = []
+            for signal in st.session_state.signals_history[-10:]:  # Last 10 signals
+                if signal['signal'] in ['BUY', 'SELL']:
+                    # Simulate trade outcome (this would be actual trade data in production)
+                    simulated_exit_price = signal['price'] * (1 + np.random.normal(0, 0.02))
+                    simulated_quantity = 1000 / signal['price']  # ₹1000 position size
+                    
+                    if signal['signal'] == 'BUY':
+                        pnl = (simulated_exit_price - signal['price']) * simulated_quantity
+                    else:
+                        pnl = (signal['price'] - simulated_exit_price) * simulated_quantity
+                    
+                    trades_data.append({
+                        'Symbol': signal['symbol'],
+                        'Signal': signal['signal'],
+                        'Entry Price': signal['price'],
+                        'Exit Price': simulated_exit_price,
+                        'P&L': pnl,
+                        'Timestamp': signal['timestamp']
+                    })
+            
+            if trades_data:
+                trades_df = pd.DataFrame(trades_data)
+                st.dataframe(trades_df, use_container_width=True)
+                
+                total_pnl = trades_df['P&L'].sum()
+                win_rate = (trades_df['P&L'] > 0).mean() * 100
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Total P&L", f"₹{total_pnl:,.2f}")
+                with col2:
+                    st.metric("Win Rate", f"{win_rate:.1f}%")
+                with col3:
+                    st.metric("Avg Trade", f"₹{trades_df['P&L'].mean():,.2f}")
+        else:
+            st.info("No signal history available for analysis")
 
 if __name__ == "__main__":
     main()
