@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+from ui.charts import apply_dark_theme
+from ui.styles import COLORS
 
 
 def show_backtesting(data_fetcher, technical_indicators, signal_generator, backtester,
@@ -105,15 +107,33 @@ def show_backtesting(data_fetcher, technical_indicators, signal_generator, backt
                         f"{results['sharpe_ratio']:.2f}"
                     )
 
-                # Portfolio value chart
+                # Portfolio value chart — a gradient-filled equity curve with a
+                # shaded underwater drawdown panel beneath it, instead of a bare line.
                 st.subheader("Portfolio Performance")
+                portfolio_history = results['portfolio_history']
                 portfolio_fig = go.Figure()
+
                 portfolio_fig.add_trace(go.Scatter(
-                    x=results['portfolio_history'].index,
-                    y=results['portfolio_history']['portfolio_value'],
+                    x=portfolio_history.index,
+                    y=portfolio_history['portfolio_value'],
                     mode='lines',
                     name='Portfolio Value',
-                    line=dict(color='blue', width=2)
+                    line=dict(color=COLORS['cyan'], width=2),
+                    fill='tozeroy',
+                    fillcolor='rgba(0, 242, 254, 0.08)'
+                ))
+
+                running_peak = portfolio_history['portfolio_value'].expanding().max()
+                drawdown_pct = (portfolio_history['portfolio_value'] - running_peak) / running_peak * 100
+                portfolio_fig.add_trace(go.Scatter(
+                    x=portfolio_history.index,
+                    y=drawdown_pct,
+                    mode='lines',
+                    name='Drawdown %',
+                    line=dict(color=COLORS['crimson'], width=1),
+                    fill='tozeroy',
+                    fillcolor='rgba(255, 51, 102, 0.18)',
+                    yaxis='y2'
                 ))
 
                 # Add buy/sell markers
@@ -123,29 +143,34 @@ def show_backtesting(data_fetcher, technical_indicators, signal_generator, backt
                 if not buy_signals.empty:
                     portfolio_fig.add_trace(go.Scatter(
                         x=buy_signals.index,
-                        y=[results['portfolio_history'].loc[idx, 'portfolio_value']
-                           for idx in buy_signals.index if idx in results['portfolio_history'].index],
+                        y=[portfolio_history.loc[idx, 'portfolio_value']
+                           for idx in buy_signals.index if idx in portfolio_history.index],
                         mode='markers',
                         name='Buy Signal',
-                        marker=dict(color='green', size=10, symbol='triangle-up')
+                        marker=dict(color=COLORS['emerald'], size=10, symbol='triangle-up')
                     ))
 
                 if not sell_signals.empty:
                     portfolio_fig.add_trace(go.Scatter(
                         x=sell_signals.index,
-                        y=[results['portfolio_history'].loc[idx, 'portfolio_value']
-                           for idx in sell_signals.index if idx in results['portfolio_history'].index],
+                        y=[portfolio_history.loc[idx, 'portfolio_value']
+                           for idx in sell_signals.index if idx in portfolio_history.index],
                         mode='markers',
                         name='Sell Signal',
-                        marker=dict(color='red', size=10, symbol='triangle-down')
+                        marker=dict(color=COLORS['crimson'], size=10, symbol='triangle-down')
                     ))
 
                 portfolio_fig.update_layout(
                     title="Portfolio Value Over Time",
                     xaxis_title="Date",
                     yaxis_title="Portfolio Value (₹)",
+                    yaxis2=dict(
+                        title="Drawdown %", overlaying='y', side='right',
+                        range=[min(drawdown_pct.min() * 1.2, -1), 5], showgrid=False
+                    ),
                     hovermode='x unified'
                 )
+                apply_dark_theme(portfolio_fig, height=450)
 
                 st.plotly_chart(portfolio_fig, use_container_width=True)
 
@@ -153,7 +178,15 @@ def show_backtesting(data_fetcher, technical_indicators, signal_generator, backt
                 st.subheader("Trade History")
                 if results['trades']:
                     trades_df = pd.DataFrame(results['trades'])
-                    st.dataframe(trades_df, use_container_width=True)
+                    st.dataframe(
+                        trades_df,
+                        use_container_width=True,
+                        column_config={
+                            "signal_strength": st.column_config.ProgressColumn(
+                                "Confidence", min_value=0, max_value=1
+                            )
+                        }
+                    )
                 else:
                     st.info("No trades executed during the backtest period")
 

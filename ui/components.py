@@ -1,5 +1,7 @@
-"""Reusable UI chrome shared across pages: the top live-price ticker and the
-sidebar (navigation + symbol/timeframe/indicator settings)."""
+"""Reusable UI chrome shared across pages: the top live-price ticker, the
+sidebar (navigation + symbol/timeframe/indicator settings), and small
+custom-HTML widgets (signal badge + confidence bar) that have no native
+Streamlit equivalent."""
 import streamlit as st
 
 PAGES = ["Live Signals", "Backtesting", "Watchlist", "Signal History", "Smart Alerts", "P&L Calculator"]
@@ -103,3 +105,28 @@ def render_sidebar() -> SidebarSettings:
     }
 
     return SidebarSettings(page, symbol, timeframe, period, indicator_params, signal_threshold)
+
+
+def render_signal_badge(signal_type: str, strength: float) -> None:
+    """A glowing pill badge + confidence bar for a BUY/SELL/HOLD call.
+
+    This is additive — call it *alongside* the existing st.metric("Signal", ...),
+    never in place of it, so at.metric assertions on the Signal card keep working
+    unchanged. strength is expected in [0, 1] (SignalGenerator guarantees this:
+    the ten signal_weights sum to 1.0 and every sub-signal is clipped to [-1, 1]).
+    """
+    variant = {"BUY": "buy", "SELL": "sell"}.get(signal_type, "hold")
+    label = {"BUY": "STRONG BUY" if strength >= 0.6 else "BUY",
+             "SELL": "STRONG SELL" if strength >= 0.6 else "SELL",
+             "HOLD": "HOLD"}.get(signal_type, "HOLD")
+    pct = max(0.0, min(1.0, strength)) * 100
+
+    st.markdown(
+        f'''
+        <div class="signal-badge {variant}">{label} · {strength:.0%} confidence</div>
+        <div class="confidence-track">
+            <div class="confidence-fill {variant}" style="width: {pct:.0f}%;"></div>
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )

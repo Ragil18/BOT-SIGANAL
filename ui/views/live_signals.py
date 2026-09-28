@@ -1,6 +1,7 @@
 import streamlit as st
 from datetime import datetime
 from ui.charts import create_chart
+from ui.components import render_signal_badge
 from ui.state import save_persisted_state
 
 
@@ -81,6 +82,7 @@ def show_live_signals(data_fetcher, technical_indicators, signal_generator,
                         value="⚪ HOLD",
                         delta="No clear signal"
                     )
+                render_signal_badge(signal_type, signal_strength)
             else:
                 st.metric(label="Signal", value="⚪ HOLD", delta="No data")
 
@@ -121,7 +123,15 @@ def show_live_signals(data_fetcher, technical_indicators, signal_generator,
             recent_signals = signals.tail(10).copy()
             recent_signals['timestamp'] = recent_signals.index
             recent_signals = recent_signals[['timestamp', 'signal', 'strength', 'price', 'reason']]
-            st.dataframe(recent_signals, use_container_width=True)
+            st.dataframe(
+                recent_signals,
+                use_container_width=True,
+                column_config={
+                    "strength": st.column_config.ProgressColumn(
+                        "Confidence", min_value=0, max_value=1
+                    )
+                }
+            )
         else:
             st.info("No signals generated yet.")
 

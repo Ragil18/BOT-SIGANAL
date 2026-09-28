@@ -4,6 +4,7 @@ from core.technical_indicators import TechnicalIndicators
 from core.signal_generator import SignalGenerator
 from core.backtester import Backtester
 from ui.state import init_session_state
+from ui.styles import inject_custom_css
 from ui.components import render_live_ticker, render_sidebar
 from ui.views.live_signals import show_live_signals
 from ui.views.backtesting import show_backtesting
@@ -19,6 +20,8 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+inject_custom_css()
 
 # Session state (seeded from SQLite storage on first load — see ui/state.py)
 init_session_state()

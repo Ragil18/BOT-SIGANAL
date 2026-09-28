@@ -1,5 +1,32 @@
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from ui.styles import COLORS
+
+# Shared trace palette so every chart in the app reads as one system instead
+# of plotly's default blue/red/green primaries.
+EMERALD = COLORS["emerald"]
+CRIMSON = COLORS["crimson"]
+AMBER = COLORS["amber"]
+CYAN = COLORS["cyan"]
+GRID = COLORS["grid"]
+TEXT_SECONDARY = COLORS["text_secondary"]
+TEXT_PRIMARY = COLORS["text_primary"]
+
+
+def apply_dark_theme(fig, height: int) -> None:
+    """Transparent paper so the page's own background/glass card shows through,
+    dark plot area with a subtle grid, and axis/legend text in the design
+    system's palette."""
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(color=TEXT_SECONDARY, family="Inter, sans-serif", size=11),
+        height=height,
+        legend=dict(bgcolor="rgba(0,0,0,0)"),
+    )
+    fig.update_xaxes(gridcolor=GRID, zerolinecolor=GRID, linecolor=GRID)
+    fig.update_yaxes(gridcolor=GRID, zerolinecolor=GRID, linecolor=GRID)
 
 
 def create_chart(data, indicators, signals):
@@ -22,7 +49,9 @@ def create_chart(data, indicators, signals):
             high=data['High'],
             low=data['Low'],
             close=data['Close'],
-            name="Price"
+            name="Price",
+            increasing=dict(line=dict(color=EMERALD), fillcolor=EMERALD),
+            decreasing=dict(line=dict(color=CRIMSON), fillcolor=CRIMSON),
         ),
         row=1, col=1
     )
@@ -35,7 +64,7 @@ def create_chart(data, indicators, signals):
                 y=indicators['bb_upper'],
                 mode='lines',
                 name='BB Upper',
-                line=dict(color='rgba(0,100,80,0.5)', width=1)
+                line=dict(color='rgba(0,242,254,0.35)', width=1)
             ),
             row=1, col=1
         )
@@ -46,9 +75,9 @@ def create_chart(data, indicators, signals):
                 y=indicators['bb_lower'],
                 mode='lines',
                 name='BB Lower',
-                line=dict(color='rgba(0,100,80,0.5)', width=1),
+                line=dict(color='rgba(0,242,254,0.35)', width=1),
                 fill='tonexty',
-                fillcolor='rgba(0,100,80,0.1)'
+                fillcolor='rgba(0,242,254,0.06)'
             ),
             row=1, col=1
         )
@@ -59,7 +88,7 @@ def create_chart(data, indicators, signals):
                 y=indicators['bb_middle'],
                 mode='lines',
                 name='BB Middle',
-                line=dict(color='orange', width=1)
+                line=dict(color=AMBER, width=1, dash='dot')
             ),
             row=1, col=1
         )
@@ -74,7 +103,7 @@ def create_chart(data, indicators, signals):
                 y=indicators['ema_9'],
                 mode='lines',
                 name='EMA 9',
-                line=dict(color='blue', width=2)
+                line=dict(color=CYAN, width=1.5)
             ),
             row=1, col=1
         )
@@ -86,7 +115,7 @@ def create_chart(data, indicators, signals):
                 y=indicators['ema_21'],
                 mode='lines',
                 name='EMA 21',
-                line=dict(color='red', width=2)
+                line=dict(color=AMBER, width=1.5)
             ),
             row=1, col=1
         )
@@ -98,7 +127,7 @@ def create_chart(data, indicators, signals):
                 y=indicators['ema_50'],
                 mode='lines',
                 name='EMA 50',
-                line=dict(color='green', width=2)
+                line=dict(color='#B388FF', width=1.5)
             ),
             row=1, col=1
         )
@@ -111,7 +140,7 @@ def create_chart(data, indicators, signals):
                 y=indicators['vwap'],
                 mode='lines',
                 name='VWAP',
-                line=dict(color='purple', width=2, dash='dash')
+                line=dict(color=TEXT_SECONDARY, width=1.5, dash='dash')
             ),
             row=1, col=1
         )
@@ -129,10 +158,10 @@ def create_chart(data, indicators, signals):
                     mode='markers',
                     name='Buy Signal',
                     marker=dict(
-                        color='green',
+                        color=EMERALD,
                         size=12,
                         symbol='triangle-up',
-                        line=dict(color='darkgreen', width=2)
+                        line=dict(color=TEXT_PRIMARY, width=1)
                     )
                 ),
                 row=1, col=1
@@ -146,22 +175,25 @@ def create_chart(data, indicators, signals):
                     mode='markers',
                     name='Sell Signal',
                     marker=dict(
-                        color='red',
+                        color=CRIMSON,
                         size=12,
                         symbol='triangle-down',
-                        line=dict(color='darkred', width=2)
+                        line=dict(color=TEXT_PRIMARY, width=1)
                     )
                 ),
                 row=1, col=1
             )
 
-    # Volume
+    # Volume — color-matched to the candle's own direction (green under a green
+    # candle, red under a red one) instead of one flat color regardless of move.
+    volume_colors = [EMERALD if c >= o else CRIMSON for o, c in zip(data['Open'], data['Close'])]
     fig.add_trace(
         go.Bar(
             x=data.index,
             y=data['Volume'],
             name='Volume',
-            marker_color='rgba(0,150,136,0.6)'
+            marker_color=volume_colors,
+            marker_opacity=0.55
         ),
         row=2, col=1
     )
@@ -174,7 +206,7 @@ def create_chart(data, indicators, signals):
                 y=indicators['rsi_fast'],
                 mode='lines',
                 name='Fast RSI',
-                line=dict(color='purple', width=2)
+                line=dict(color=CYAN, width=1.5)
             ),
             row=3, col=1
         )
@@ -186,20 +218,20 @@ def create_chart(data, indicators, signals):
                 y=indicators['williams_r'],
                 mode='lines',
                 name='Williams %R',
-                line=dict(color='orange', width=2),
+                line=dict(color=AMBER, width=1.5),
                 yaxis='y2'
             ),
             row=3, col=1
         )
 
         # Reference lines for Williams %R
-        fig.add_hline(y=-20, line_dash="dash", line_color="red", row=3, col=1, opacity=0.5)
-        fig.add_hline(y=-80, line_dash="dash", line_color="green", row=3, col=1, opacity=0.5)
+        fig.add_hline(y=-20, line_dash="dash", line_color=CRIMSON, row=3, col=1, opacity=0.5)
+        fig.add_hline(y=-80, line_dash="dash", line_color=EMERALD, row=3, col=1, opacity=0.5)
 
     # RSI reference levels
-    fig.add_hline(y=75, line_dash="dash", line_color="red", row=3, col=1, opacity=0.7)
-    fig.add_hline(y=25, line_dash="dash", line_color="green", row=3, col=1, opacity=0.7)
-    fig.add_hline(y=50, line_dash="dot", line_color="gray", row=3, col=1, opacity=0.5)
+    fig.add_hline(y=75, line_dash="dash", line_color=CRIMSON, row=3, col=1, opacity=0.7)
+    fig.add_hline(y=25, line_dash="dash", line_color=EMERALD, row=3, col=1, opacity=0.7)
+    fig.add_hline(y=50, line_dash="dot", line_color=TEXT_SECONDARY, row=3, col=1, opacity=0.5)
 
     # MACD
     if 'macd' in indicators.columns:
@@ -209,7 +241,7 @@ def create_chart(data, indicators, signals):
                 y=indicators['macd'],
                 mode='lines',
                 name='MACD',
-                line=dict(color='blue', width=2)
+                line=dict(color=CYAN, width=1.5)
             ),
             row=4, col=1
         )
@@ -220,18 +252,19 @@ def create_chart(data, indicators, signals):
                 y=indicators['macd_signal'],
                 mode='lines',
                 name='MACD Signal',
-                line=dict(color='red', width=2)
+                line=dict(color=AMBER, width=1.5)
             ),
             row=4, col=1
         )
 
+        macd_hist_colors = [EMERALD if v >= 0 else CRIMSON for v in indicators['macd_histogram']]
         fig.add_trace(
             go.Bar(
                 x=data.index,
                 y=indicators['macd_histogram'],
                 name='MACD Histogram',
-                marker_color='gray',
-                opacity=0.6
+                marker_color=macd_hist_colors,
+                opacity=0.5
             ),
             row=4, col=1
         )
@@ -245,7 +278,7 @@ def create_chart(data, indicators, signals):
                 y=indicators['stoch_k'],
                 mode='lines',
                 name='%K',
-                line=dict(color='blue', width=2)
+                line=dict(color=CYAN, width=1.5)
             ),
             row=5, col=1
         )
@@ -256,23 +289,23 @@ def create_chart(data, indicators, signals):
                 y=indicators['stoch_d'],
                 mode='lines',
                 name='%D',
-                line=dict(color='red', width=2)
+                line=dict(color=AMBER, width=1.5)
             ),
             row=5, col=1
         )
 
         # Stochastic reference lines
-        fig.add_hline(y=80, line_dash="dash", line_color="red", row=5, col=1, opacity=0.7)
-        fig.add_hline(y=20, line_dash="dash", line_color="green", row=5, col=1, opacity=0.7)
+        fig.add_hline(y=80, line_dash="dash", line_color=CRIMSON, row=5, col=1, opacity=0.7)
+        fig.add_hline(y=20, line_dash="dash", line_color=EMERALD, row=5, col=1, opacity=0.7)
 
-    # Update layout with better time formatting
+    # Title, hover behavior, and the dark theme (transparent paper, grid, fonts)
     fig.update_layout(
         title=f"Swing Trading Analysis Chart - Last Updated: {data.index[-1].strftime('%H:%M:%S')}",
         xaxis_rangeslider_visible=False,
-        height=900,
         showlegend=True,
         hovermode='x unified'
     )
+    apply_dark_theme(fig, height=900)
 
     # Format x-axis to show time properly
     fig.update_xaxes(
