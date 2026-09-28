@@ -1,7 +1,7 @@
 from pathlib import Path
 from datetime import datetime
 from streamlit.testing.v1 import AppTest
-import storage
+from core import storage
 
 APP_PATH = str(Path(__file__).parent.parent / "app.py")
 
@@ -54,7 +54,7 @@ def test_get_real_time_price_is_cached(monkeypatch):
     the same symbol within the TTL window and confirm — via a monkeypatched call
     counter on yfinance.Ticker — that the underlying network call only happens once)."""
     import yfinance as yf
-    from data_fetcher import DataFetcher
+    from core.data_fetcher import DataFetcher
 
     # Invalidate any prior cache from earlier tests in this pytest run
     DataFetcher.get_real_time_price.clear()
@@ -84,7 +84,7 @@ def test_get_real_time_price_is_cached(monkeypatch):
 def test_market_data_source_protocol_structural_subtyping():
     """MarketDataSource Protocol: write a minimal fake implementing its 4 methods
     and confirm `isinstance(fake, MarketDataSource)` is True (structural typing check)."""
-    from data_fetcher import MarketDataSource
+    from core.data_fetcher import MarketDataSource
     import pandas as pd
 
     class FakeCryptoExchange:

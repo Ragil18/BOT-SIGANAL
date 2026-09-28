@@ -1,6 +1,6 @@
 from pathlib import Path
 from streamlit.testing.v1 import AppTest
-import storage
+from core import storage
 
 APP_PATH = str(Path(__file__).parent.parent / "app.py")
 

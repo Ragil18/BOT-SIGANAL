@@ -1,5 +1,5 @@
-from technical_indicators import TechnicalIndicators
-from signal_generator import SignalGenerator
+from core.technical_indicators import TechnicalIndicators
+from core.signal_generator import SignalGenerator
 
 
 def _indicators(ohlcv):

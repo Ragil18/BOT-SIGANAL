@@ -1,4 +1,4 @@
-from technical_indicators import TechnicalIndicators
+from core.technical_indicators import TechnicalIndicators
 
 
 def test_calculate_all_returns_expected_columns(ohlcv):

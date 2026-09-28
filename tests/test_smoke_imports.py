@@ -5,8 +5,11 @@ def test_pure_modules_import_cleanly():
     """A basic import-smoke-test would have caught the original bug where
     backtester.py used pd.DataFrame (as a type annotation and at runtime) without
     ever importing pandas — that raised NameError the moment the module loaded."""
-    for module_name in ["data_fetcher", "technical_indicators", "signal_generator",
-                         "backtester", "storage"]:
+    for module_name in ["core.data_fetcher", "core.technical_indicators", "core.signal_generator",
+                         "core.backtester", "core.storage",
+                         "ui.charts", "ui.state", "ui.components",
+                         "ui.views.live_signals", "ui.views.backtesting", "ui.views.watchlist",
+                         "ui.views.signal_history", "ui.views.smart_alerts", "ui.views.pnl_calculator"]:
         importlib.import_module(module_name)
 
 

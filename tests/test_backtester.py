@@ -1,5 +1,5 @@
 import pandas as pd
-from backtester import Backtester
+from core.backtester import Backtester
 
 
 def _flat_signals(index, close):
