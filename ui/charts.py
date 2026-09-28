@@ -23,7 +23,19 @@ def apply_dark_theme(fig, height: int) -> None:
         plot_bgcolor="rgba(0,0,0,0)",
         font=dict(color=TEXT_SECONDARY, family="Inter, sans-serif", size=11),
         height=height,
-        legend=dict(bgcolor="rgba(0,0,0,0)"),
+        # Horizontal, wrapped strip below the plot instead of Plotly's default
+        # vertical list on the right — with ~19 traces across 5 subplots, a
+        # right-side legend ends up as a giant column crowding the chart itself.
+        legend=dict(
+            bgcolor="rgba(0,0,0,0)",
+            orientation="h",
+            yanchor="top",
+            y=-0.09,
+            xanchor="center",
+            x=0.5,
+            font=dict(size=9),
+        ),
+        margin=dict(b=150),
     )
     fig.update_xaxes(gridcolor=GRID, zerolinecolor=GRID, linecolor=GRID)
     fig.update_yaxes(gridcolor=GRID, zerolinecolor=GRID, linecolor=GRID)
@@ -307,11 +319,12 @@ def create_chart(data, indicators, signals):
     )
     apply_dark_theme(fig, height=900)
 
-    # Format x-axis to show time properly
-    fig.update_xaxes(
-        tickformat='%H:%M',
-        title_text="Time"
-    )
+    # Format x-axis to show time properly. Only the bottom-most subplot gets the
+    # "Time" title — with shared_xaxes, update_xaxes() with no row/col filter
+    # applies to every row, which previously stamped "Time" under each of the
+    # 5 stacked subplots instead of once at the bottom.
+    fig.update_xaxes(tickformat='%H:%M')
+    fig.update_xaxes(title_text="Time", row=5, col=1)
 
     # Update y-axis labels
     fig.update_yaxes(title_text="Price (₹)", row=1, col=1)

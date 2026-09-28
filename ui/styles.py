@@ -104,6 +104,10 @@ hr {{
     font-family: 'Roboto Mono', monospace;
     font-weight: 600;
     color: var(--text-primary) !important;
+    font-size: 1.3rem !important;
+    white-space: normal !important;
+    overflow-wrap: break-word;
+    line-height: 1.25;
 }}
 [data-testid="stMetricDelta"] svg {{
     display: none;
