@@ -10,3 +10,11 @@ dependencies = [
     "streamlit>=1.47.1",
     "yfinance>=0.2.65",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

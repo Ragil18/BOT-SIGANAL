@@ -217,7 +217,7 @@ class TechnicalIndicators:
         return prices.diff(period) / period
     
     def calculate_squeeze_momentum(self, data: pd.DataFrame) -> pd.Series:
-        """Calculate TTM Squeeze momentum for scalping entries"""
+        """Calculate TTM Squeeze momentum — used by the Smart Alerts "Squeeze Breakout" trigger"""
         try:
             bb_data = self.calculate_bollinger_bands(data['Close'], 20, 2.0)
             bb_upper = bb_data['bb_upper']
@@ -248,7 +248,8 @@ class TechnicalIndicators:
         return upper, lower
     
     def calculate_market_structure(self, data: pd.DataFrame) -> pd.Series:
-        """Identify market structure for scalping context"""
+        """Identify market structure (higher-highs/higher-lows vs. lower-highs/lower-lows) —
+        used by the Smart Alerts "Trend Change" trigger"""
         high_period = 5
         low_period = 5
         

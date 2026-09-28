@@ -1,0 +1,7 @@
+venv/
+.venv/
+.verify_venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+app_state.db

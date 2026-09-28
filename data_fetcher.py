@@ -1,11 +1,29 @@
 import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
+from typing import Protocol, runtime_checkable
 import streamlit as st
 import requests
 
+
+@runtime_checkable
+class MarketDataSource(Protocol):
+    """The surface app.py actually depends on. Everything downstream (TechnicalIndicators,
+    SignalGenerator, Backtester) only ever sees the DataFrames/dicts these four methods
+    return — so swapping yfinance for a crypto-native exchange API just means writing a
+    class with this shape and pointing app.py's `data_fetcher = DataFetcher()` at it
+    instead. No structural inheritance is required; this is checked by shape, not by type.
+    """
+    def get_usd_to_inr_rate(self) -> float: ...
+    def get_data(self, symbol: str, period: str = "1mo", interval: str = "1h") -> pd.DataFrame: ...
+    def get_historical_data(self, symbol: str, start_date: datetime, end_date: datetime,
+                             interval: str = "1d") -> pd.DataFrame: ...
+    def get_real_time_price(self, symbol: str) -> dict: ...
+
+
 class DataFetcher:
-    """Class for fetching cryptocurrency market data with INR conversion"""
+    """Fetches cryptocurrency market data via Yahoo Finance (yfinance) with INR conversion.
+    Implements the MarketDataSource shape above."""
     
     def __init__(self):
         self.cache_duration = 60  # 1 minute cache for more real-time data
@@ -93,7 +111,8 @@ class DataFetcher:
             st.error(f"Error fetching historical data for {symbol}: {str(e)}")
             return pd.DataFrame()
     
-    def get_real_time_price(self, symbol: str) -> dict:
+    @st.cache_data(ttl=30)
+    def get_real_time_price(_self, symbol: str) -> dict:
         """Get real-time cryptocurrency price data in INR"""
         try:
             # Ensure crypto symbol format
@@ -104,7 +123,7 @@ class DataFetcher:
             info = ticker.info
             
             # Get USD to INR rate
-            usd_to_inr = self.get_usd_to_inr_rate()
+            usd_to_inr = _self.get_usd_to_inr_rate()
             
             price_usd = info.get('currentPrice', info.get('regularMarketPrice', 0))
             change_usd = info.get('regularMarketChange', 0)
@@ -123,100 +142,21 @@ class DataFetcher:
             st.error(f"Error fetching real-time data for {symbol}: {str(e)}")
             return {}
     
-    def get_company_info(self, symbol: str) -> dict:
-        """Get company information"""
-        try:
-            ticker = yf.Ticker(symbol)
-            info = ticker.info
-            
-            return {
-                'name': info.get('longName', symbol),
-                'sector': info.get('sector', 'Unknown'),
-                'industry': info.get('industry', 'Unknown'),
-                'description': info.get('longBusinessSummary', 'No description available')[:500] + '...',
-                'website': info.get('website', ''),
-                'employees': info.get('fullTimeEmployees', 0),
-                'city': info.get('city', ''),
-                'country': info.get('country', '')
-            }
-            
-        except Exception as e:
-            st.error(f"Error fetching company info for {symbol}: {str(e)}")
-            return {}
-    
-    def validate_symbol(self, symbol: str) -> bool:
-        """Validate if a symbol exists and has data"""
-        try:
-            ticker = yf.Ticker(symbol)
-            info = ticker.info
-            
-            # Check if we get valid info back
-            return 'regularMarketPrice' in info or 'currentPrice' in info
-            
-        except:
-            return False
-    
-    def get_market_status(self) -> dict:
-        """Get general market status"""
-        try:
-            # Use SPY as market indicator
-            spy = yf.Ticker("SPY")
-            info = spy.info
-            
-            return {
-                'market_open': info.get('regularMarketOpen', 0),
-                'market_price': info.get('regularMarketPrice', 0),
-                'market_change': info.get('regularMarketChange', 0),
-                'market_change_percent': info.get('regularMarketChangePercent', 0)
-            }
-            
-        except Exception as e:
-            st.error(f"Error fetching market status: {str(e)}")
-            return {}
-    
-    def get_trending_symbols(self) -> list:
-        """Get popular cryptocurrency symbols for trading"""
-        # Popular crypto symbols that usually have good data
-        trending = [
-            'BTC', 'ETH', 'BNB', 'XRP', 'ADA',
-            'SOL', 'DOGE', 'DOT', 'AVAX', 'SHIB',
-            'MATIC', 'LTC', 'LINK', 'UNI', 'ATOM'
-        ]
-        
-        return trending
-    
-    def validate_crypto_symbol(self, symbol: str) -> bool:
-        """Validate if a crypto symbol exists and has data"""
+    @st.cache_data(ttl=300)
+    def validate_crypto_symbol(_self, symbol: str) -> bool:
+        """Validate if a crypto symbol exists and has data on Yahoo Finance"""
         try:
             if not symbol.endswith('-USD'):
                 symbol = f"{symbol}-USD"
-                
+
             ticker = yf.Ticker(symbol)
             info = ticker.info
-            
-            # Check if we get valid info back
+
             return 'regularMarketPrice' in info or 'currentPrice' in info
-            
-        except:
-            return False
-    
-    def get_crypto_info(self, symbol: str) -> dict:
-        """Get cryptocurrency information"""
-        try:
-            if not symbol.endswith('-USD'):
-                symbol = f"{symbol}-USD"
-                
-            ticker = yf.Ticker(symbol)
-            info = ticker.info
-            
-            return {
-                'name': info.get('longName', symbol.replace('-USD', '')),
-                'symbol': symbol.replace('-USD', ''),
-                'description': info.get('longBusinessSummary', 'Cryptocurrency')[:500] + '...',
-                'website': info.get('website', ''),
-                'market_cap_rank': info.get('marketCapRank', 0)
-            }
-            
+
         except Exception as e:
-            st.error(f"Error fetching crypto info for {symbol}: {str(e)}")
-            return {}
+            # yfinance raises an untyped mix of network/parsing errors here; we still want
+            # to fail closed (treat as invalid) but the message must be visible, not swallowed,
+            # so a rate-limit or outage doesn't look identical to "this symbol doesn't exist".
+            st.warning(f"Could not validate {symbol}: {str(e)}")
+            return False

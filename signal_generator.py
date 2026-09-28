@@ -36,26 +36,33 @@ class SignalGenerator:
         support_resistance_signals = self._support_resistance_signals(indicators)
         breakout_signals = self._breakout_signals(indicators)
         
+        # Per-indicator contributions, kept alongside the final score so a BUY/SELL call
+        # is auditable (which sub-signals actually drove it) rather than only narrated.
+        contributions = {
+            'rsi': rsi_signals * self.signal_weights['rsi'],
+            'macd': macd_signals * self.signal_weights['macd'],
+            'bollinger': bb_signals * self.signal_weights['bollinger'],
+            'swing_trend': swing_trend_signals * self.signal_weights['swing_trend'],
+            'stochastic': stoch_signals * self.signal_weights['stochastic'],
+            'williams_r': williams_signals * self.signal_weights['williams_r'],
+            'volume': volume_signals * self.signal_weights['volume'],
+            'momentum': momentum_signals * self.signal_weights['momentum'],
+            'support_resistance': support_resistance_signals * self.signal_weights['support_resistance'],
+            'breakout_signal': breakout_signals * self.signal_weights['breakout_signal'],
+        }
+
         # Combine signals with swing trading weights
-        combined_score = (
-            rsi_signals * self.signal_weights['rsi'] +
-            macd_signals * self.signal_weights['macd'] +
-            bb_signals * self.signal_weights['bollinger'] +
-            swing_trend_signals * self.signal_weights['swing_trend'] +
-            stoch_signals * self.signal_weights['stochastic'] +
-            williams_signals * self.signal_weights['williams_r'] +
-            volume_signals * self.signal_weights['volume'] +
-            momentum_signals * self.signal_weights['momentum'] +
-            support_resistance_signals * self.signal_weights['support_resistance'] +
-            breakout_signals * self.signal_weights['breakout_signal']
-        )
-        
+        combined_score = sum(contributions.values())
+
         # Generate final signals
         signals['score'] = combined_score
         signals['signal'] = 'HOLD'
         signals['strength'] = np.abs(combined_score)
         signals['price'] = data['Close']
         signals['reason'] = ''
+
+        for name, contribution in contributions.items():
+            signals[f'contrib_{name}'] = contribution
         
         # Apply threshold
         buy_condition = combined_score > threshold
@@ -159,17 +166,6 @@ class SignalGenerator:
         
         return np.clip(signals, -1, 1)
     
-    def _scalp_trend_signals(self, indicators: pd.DataFrame) -> pd.Series:
-        """Generate scalping trend signals"""
-        trend = indicators.get('scalp_trend', pd.Series(0, index=indicators.index))
-        signals = pd.Series(0.0, index=indicators.index)
-        
-        # Direct trend following for scalping
-        signals[trend > 0] = 0.8
-        signals[trend < 0] = -0.8
-        
-        return signals
-    
     def _williams_r_signals(self, indicators: pd.DataFrame) -> pd.Series:
         """Generate Williams %R signals for scalping"""
         williams = indicators.get('williams_r', None)
@@ -185,95 +181,6 @@ class SignalGenerator:
         signals[williams > -20] = -0.6  # Moderate sell
         
         return signals
-    
-    def _velocity_signals(self, indicators: pd.DataFrame) -> pd.Series:
-        """Generate price velocity signals for scalping"""
-        velocity = indicators.get('price_velocity', None)
-        if velocity is None:
-            return pd.Series(0.0, index=indicators.index)
-            
-        signals = pd.Series(0.0, index=indicators.index)
-        
-        try:
-            # Momentum-based signals
-            velocity_std = velocity.rolling(20).std()
-            threshold = velocity_std * 1.5
-            
-            signals[velocity > threshold] = 0.7   # Strong upward momentum
-            signals[velocity < -threshold] = -0.7  # Strong downward momentum
-        except:
-            pass
-        
-        return signals
-    
-    def _squeeze_momentum_signals(self, indicators: pd.DataFrame) -> pd.Series:
-        """Generate squeeze momentum signals for scalping"""
-        squeeze = indicators.get('squeeze_momentum', pd.Series(0, index=indicators.index))
-        signals = pd.Series(0.0, index=indicators.index)
-        
-        # Momentum breakout signals
-        momentum_change = squeeze.diff()
-        signals[momentum_change > 0.5] = 0.8   # Positive momentum
-        signals[momentum_change < -0.5] = -0.8  # Negative momentum
-        
-        return signals
-    
-    def _market_structure_signals(self, indicators: pd.DataFrame) -> pd.Series:
-        """Generate market structure signals"""
-        structure = indicators.get('market_structure', pd.Series(0, index=indicators.index))
-        signals = pd.Series(0.0, index=indicators.index)
-        
-        # Structure alignment
-        signals[structure > 0] = 0.6   # Uptrend structure
-        signals[structure < 0] = -0.6  # Downtrend structure
-        
-        return signals
-    
-    def _trend_strength_signals(self, indicators: pd.DataFrame) -> pd.Series:
-        """Generate trend strength signals"""
-        strength = indicators.get('trend_strength', pd.Series(0, index=indicators.index))
-        signals = pd.Series(0.0, index=indicators.index)
-        
-        # Strong trend alignment
-        signals[strength > 0.8] = 0.7   # Strong bullish trend
-        signals[strength < -0.8] = -0.7  # Strong bearish trend
-        
-        return signals
-    
-    def _moving_average_signals(self, data: pd.DataFrame, indicators: pd.DataFrame) -> pd.Series:
-        """Generate Moving Average-based signals"""
-        price = data['Close']
-        sma_20 = indicators['sma_20']
-        sma_50 = indicators['sma_50']
-        ema_12 = indicators['ema_12']
-        ema_26 = indicators['ema_26']
-        
-        signals = pd.Series(0.0, index=indicators.index)
-        
-        # Price vs Moving Averages
-        signals[price > sma_20] += 0.3
-        signals[price < sma_20] -= 0.3
-        signals[price > sma_50] += 0.2
-        signals[price < sma_50] -= 0.2
-        
-        # Golden/Death Cross
-        ma_cross = sma_20 - sma_50
-        ma_cross_prev = ma_cross.shift(1)
-        
-        golden_cross = (ma_cross > 0) & (ma_cross_prev <= 0)
-        death_cross = (ma_cross < 0) & (ma_cross_prev >= 0)
-        
-        signals[golden_cross] += 0.7
-        signals[death_cross] -= 0.7
-        
-        # EMA trend
-        ema_trend = ema_12 - ema_26
-        ema_trend_prev = ema_trend.shift(1)
-        
-        signals[ema_trend > ema_trend_prev] += 0.2
-        signals[ema_trend < ema_trend_prev] -= 0.2
-        
-        return np.clip(signals, -1, 1)
     
     def _stochastic_signals(self, indicators: pd.DataFrame) -> pd.Series:
         """Generate Stochastic Oscillator-based signals"""

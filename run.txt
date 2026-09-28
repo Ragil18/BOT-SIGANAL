@@ -1,0 +1,44 @@
+es, using a virtual environment (venv) is highly recommended for this project! It keeps your dependencies isolated and prevents conflicts with other Python projects. Here's how to set it up:
+
+Step-by-Step with Virtual Environment
+Step 1: Create Project Folder
+mkdir crypto-swing-bot
+cd crypto-swing-bot
+Step 2: Create Virtual Environment
+python -m venv venv
+Step 3: Activate Virtual Environment
+On Windows:
+
+venv\Scripts\activate
+On Mac/Linux:
+
+source venv/bin/activate
+You'll see (venv) in your terminal prompt when it's active.
+
+Step 4: Download Project Files
+Copy all the project files into this folder:
+
+app.py
+technical_indicators.py
+signal_generator.py
+data_fetcher.py
+backtester.py
+Step 5: Install Dependencies
+pip install streamlit pandas numpy plotly yfinance
+Step 6: Create Streamlit Config
+Create .streamlit/config.toml:
+
+[server]
+headless = true
+address = "0.0.0.0"
+port = 8501
+Step 7: Run the Bot
+streamlit run app.py
+Step 8: Deactivate When Done
+deactivate
+Benefits of Using venv:
+Keeps project dependencies separate
+Prevents version conflicts
+Makes the project portable
+Easier to share requirements with others
+The virtual environment ensures your swing trading bot runs with the exact library versions it needs without affecting your system Python installation.
