@@ -643,6 +643,7 @@ class TradeSignalTerminal {
         }
 
         // Modular Navigation & Workspace Bindings
+        this.bindPageNavigation();
         this.bindSidebarTabs();
         this.bindDockControls();
         this.bindWorkspaceModes();
@@ -704,43 +705,92 @@ class TradeSignalTerminal {
         }
     }
 
+    bindPageNavigation() {
+        const pageBtns = document.querySelectorAll('.page-nav-btn');
+        pageBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const page = btn.dataset.page;
+                this.switchPage(page);
+            });
+        });
+
+        // Keyboard Shortcuts: Alt+1 (Terminal), Alt+2 (Quant), Alt+3 (Studio)
+        window.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
+            if (e.altKey && e.key === '1') { e.preventDefault(); this.switchPage('terminal'); }
+            if (e.altKey && e.key === '2') { e.preventDefault(); this.switchPage('quant'); }
+            if (e.altKey && e.key === '3') { e.preventDefault(); this.switchPage('studio'); }
+        });
+
+        // Initialize from URL hash if provided
+        const hash = window.location.hash.replace('#', '').toLowerCase();
+        if (['terminal', 'quant', 'studio'].includes(hash)) {
+            this.switchPage(hash);
+        }
+    }
+
+    switchPage(page) {
+        if (!['terminal', 'quant', 'studio'].includes(page)) page = 'terminal';
+        this.activePage = page;
+        window.location.hash = page;
+
+        // Update nav button active states
+        document.querySelectorAll('.page-nav-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.page === page);
+        });
+
+        // Show/hide page views
+        document.querySelectorAll('.page-view').forEach(view => {
+            view.classList.toggle('active', view.id === `page-${page}`);
+        });
+
+        // Synchronize legacy workspaceModes buttons if present
+        if (this.dom.workspaceModes) {
+            this.dom.workspaceModes.querySelectorAll('.mode-btn').forEach(b => {
+                b.classList.toggle('active', b.dataset.mode === page);
+            });
+        }
+
+        if (page === 'terminal') {
+            setTimeout(() => {
+                this.handleResize();
+                if (this.chart && this.dom.chartContainer) {
+                    this.chart.applyOptions({
+                        width: this.dom.chartContainer.clientWidth,
+                        height: this.dom.chartContainer.clientHeight
+                    });
+                }
+            }, 60);
+        } else if (page === 'studio') {
+            if (this.loadBacktestData) {
+                this.loadBacktestData(true);
+            }
+            if (this.loadNewsData) {
+                this.loadNewsData();
+            }
+            if (this.paper && this.paper.renderAnalytics) {
+                this.paper.renderAnalytics();
+            }
+            setTimeout(() => {
+                if (this.renderEquityCurve) {
+                    this.renderEquityCurve();
+                }
+            }, 80);
+        }
+    }
+
     bindWorkspaceModes() {
         if (!this.dom.workspaceModes) return;
         this.dom.workspaceModes.addEventListener('click', (e) => {
             const btn = e.target.closest('.mode-btn');
             if (!btn) return;
             const mode = btn.dataset.mode;
-            this.setWorkspaceMode(mode);
+            this.switchPage(mode);
         });
     }
 
     setWorkspaceMode(mode) {
-        if (!this.dom.workspaceModes) return;
-        this.dom.workspaceModes.querySelectorAll('.mode-btn').forEach(b => {
-            b.classList.toggle('active', b.dataset.mode === mode);
-        });
-
-        if (mode === 'terminal') {
-            this.switchSidebarTab('execute');
-            if (this.dom.paperDock) {
-                this.dom.paperDock.classList.remove('expanded', 'minimized');
-            }
-        } else if (mode === 'quant') {
-            this.switchSidebarTab('quant');
-            if (this.dom.paperDock) {
-                this.dom.paperDock.classList.remove('expanded');
-            }
-        } else if (mode === 'studio') {
-            if (this.dom.paperDock) {
-                this.dom.paperDock.classList.remove('minimized');
-                this.dom.paperDock.classList.add('expanded');
-            }
-            if (this.paper) {
-                this.paper.switchTab('backtest');
-            }
-            this.loadBacktestData(true);
-        }
-        this.handleResize();
+        this.switchPage(mode);
     }
 
     bindHeaderPresets() {
@@ -2793,6 +2843,10 @@ class PaperTradingEngine {
             { category: 'BACKTEST', text: 'Backtest: Focus Strategy Backtest Studio Tab', action: 'paper_tab', param: 'backtest' },
             // Market Regime Commands
             { category: 'REGIME', text: 'Market Regime: Inspect Macro Structure & Guardrails', action: 'inspect_regime', param: null },
+            // Primary Pages Navigation
+            { category: 'PAGE', text: 'Go to Trading Terminal (Charts & Order Execution)', action: 'workspace_mode', param: 'terminal' },
+            { category: 'PAGE', text: 'Go to Quant & AI Intel (Signals, Deep LSTM & Bot)', action: 'workspace_mode', param: 'quant' },
+            { category: 'PAGE', text: 'Go to Research Studio (Backtester, News & Analytics)', action: 'workspace_mode', param: 'studio' },
             // Workspace Mode Commands
             { category: 'VIEW', text: 'Workspace: Terminal View (Chart + L2 DOM + Execution)', action: 'workspace_mode', param: 'terminal' },
             { category: 'VIEW', text: 'Workspace: Quant View (AI ML Forecast + Macro Regime)', action: 'workspace_mode', param: 'quant' },
