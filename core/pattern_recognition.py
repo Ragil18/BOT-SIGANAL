@@ -140,6 +140,7 @@ class PatternRecognition:
         vol_surge = pattern_row.get('volume_surge', False)
         vol_ratio = pattern_row.get('volume_ratio', 1.0)
         
+        fundamentals = fundamentals or {}
         name = fundamentals.get('name', symbol)
         target = fundamentals.get('target_price')
         pe = fundamentals.get('pe_trailing')

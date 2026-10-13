@@ -203,7 +203,7 @@ async def get_candles(
         sigs = signal_generator.generate_signals(df, inds, threshold, preset=preset)
         pats = PatternRecognition.detect_patterns(df.iloc[-100:])
         latest_pat = pats.iloc[-1].to_dict() if not pats.empty else None
-        funds = data_fetcher.get_asset_fundamentals(symbol)
+        funds = {}
         return df, inds, sigs, pats, latest_pat, funds
 
     try:

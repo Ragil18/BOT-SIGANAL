@@ -1,3 +1,5 @@
+import json
+import urllib.request
 import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
@@ -67,13 +69,51 @@ class DataFetcher:
             return 83.0  # Fallback rate
     
     @ttl_cache(ttl=60)
+    def _fetch_crypto_klines(_self, symbol: str, interval: str = "1h", limit: int = 500) -> pd.DataFrame:
+        """Fetch real-time, low-latency crypto OHLCV directly from Binance public REST API (under 200ms)."""
+        clean = symbol.upper().replace('-USD', '').replace('USDT', '')
+        binance_symbol = f"{clean}USDT"
+        binance_interval_map = {
+            '1m': '1m', '3m': '3m', '5m': '5m', '15m': '15m', '30m': '30m',
+            '1h': '1h', '2h': '2h', '4h': '4h', '6h': '6h', '8h': '8h', '12h': '12h',
+            '1d': '1d', '3d': '3d', '1w': '1w', '1M': '1M'
+        }
+        b_interval = binance_interval_map.get(interval, '1h')
+        url = f"https://api.binance.com/api/v3/klines?symbol={binance_symbol}&interval={b_interval}&limit={limit}"
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'TradeSignal/2.0'})
+            with urllib.request.urlopen(req, timeout=4) as response:
+                raw = json.loads(response.read().decode('utf-8'))
+            if not raw:
+                return pd.DataFrame()
+            df = pd.DataFrame(raw, columns=[
+                'open_time', 'Open', 'High', 'Low', 'Close', 'Volume',
+                'close_time', 'qav', 'num_trades', 'taker_base_vol', 'taker_quote_vol', 'ignore'
+            ])
+            for col in ['Open', 'High', 'Low', 'Close', 'Volume']:
+                df[col] = df[col].astype(float)
+            df.index = pd.to_datetime(df['open_time'], unit='ms', utc=True)
+            return df[['Open', 'High', 'Low', 'Close', 'Volume']]
+        except Exception as e:
+            logger.warning(f"Binance kline fetch failed for {symbol}: {e}")
+            return pd.DataFrame()
+
+    @ttl_cache(ttl=60)
     def get_data(_self, symbol: str, period: str = "1mo", interval: str = "1h", timeframe: str = None) -> pd.DataFrame:
-        """Fetch cryptocurrency or Indian stock data with INR conversion"""
+        """Fetch cryptocurrency or Indian stock data with low latency."""
         try:
             target_interval = timeframe if timeframe is not None else interval
             yf_symbol, is_inr_native = to_yf_symbol(symbol)
+
+            # 1. High-Speed Crypto-Native Path (Binance API: ~200ms, raw USD price)
+            if not is_inr_native:
+                df_crypto = _self._fetch_crypto_klines(symbol, interval=target_interval)
+                if not df_crypto.empty:
+                    df_crypto = validate_ohlcv(df_crypto, strict=False)
+                    return df_crypto
+
+            # 2. Equity & Stock Path / Fallback (Yahoo Finance)
             ticker = yf.Ticker(yf_symbol)
-            # Support 3m by querying 1m data and resampling
             actual_interval = '1m' if target_interval == '3m' else target_interval
             actual_period = '5d' if (target_interval == '3m' and period not in ['1d', '5d', '7d']) else period
             data = ticker.history(period=actual_period, interval=actual_interval)
@@ -93,11 +133,11 @@ class DataFetcher:
                     'Volume': 'sum'
                 }).dropna()
             
-            # Convert timestamp index to Indian Standard Time (IST)
+            # Convert timestamp index to UTC
             if hasattr(data.index, 'tz') and data.index.tz is not None:
-                data.index = data.index.tz_convert('Asia/Kolkata')
+                data.index = data.index.tz_convert('UTC')
             elif hasattr(data.index, 'tz_localize'):
-                data.index = data.index.tz_localize('UTC').tz_convert('Asia/Kolkata')
+                data.index = data.index.tz_localize('UTC')
 
             # Ensure we have the required columns
             required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
@@ -106,13 +146,6 @@ class DataFetcher:
             if missing_columns:
                 logger.error(f"Missing required columns: {missing_columns}")
                 return pd.DataFrame()
-            
-            # Convert USD prices to INR for crypto; stocks are already in INR
-            if not is_inr_native:
-                usd_to_inr = _self.get_usd_to_inr_rate()
-                price_columns = ['Open', 'High', 'Low', 'Close']
-                for col in price_columns:
-                    data[col] = data[col] * usd_to_inr
             
             # Spec-Driven Contract Validation (OHLCV Market Data Invariants)
             data = validate_ohlcv(data, strict=False)
