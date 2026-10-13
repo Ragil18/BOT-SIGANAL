@@ -1,0 +1,42 @@
+strategy_id: holy_trinity
+name: "👑 Holy Trinity (EMA + RSI + Bollinger Bands)"
+description: "Best-in-class 3-pillar combo: Trend (EMA) + Momentum (RSI) + Volatility (BB/ATR). Eliminates redundant noise."
+target_timeframes:
+  - "5m"
+  - "15m"
+  - "1h"
+  - "4h"
+entry_threshold: 0.30
+indicators:
+  - rsi
+  - swing_trend
+  - bollinger
+  - macd
+  - stochastic
+  - williams_r
+  - volume
+  - momentum
+  - support_resistance
+  - breakout_signal
+weights:
+  rsi: 0.35
+  swing_trend: 0.35
+  bollinger: 0.30
+  macd: 0.0
+  stochastic: 0.0
+  williams_r: 0.0
+  volume: 0.0
+  momentum: 0.0
+  support_resistance: 0.0
+  breakout_signal: 0.0
+params:
+  rsi_period: 14
+  ema_fast: 20
+  ema_slow: 50
+  bb_period: 20
+  bb_std: 2.0
+risk:
+  tp_atr_multiplier: 2.5
+  sl_atr_multiplier: 1.5
+  max_risk_pct: 0.02
+  trailing_stop: false

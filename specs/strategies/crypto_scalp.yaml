@@ -1,0 +1,40 @@
+strategy_id: crypto_scalp
+name: "⚡ Crypto Scalping (Fast Momentum)"
+description: "Optimized for high-volatility crypto assets on 1M/5M/15M timeframes."
+target_timeframes:
+  - "1m"
+  - "3m"
+  - "5m"
+  - "15m"
+entry_threshold: 0.25
+indicators:
+  - rsi
+  - bollinger
+  - momentum
+  - volume
+  - swing_trend
+  - macd
+  - stochastic
+  - williams_r
+  - support_resistance
+  - breakout_signal
+weights:
+  rsi: 0.30
+  bollinger: 0.25
+  momentum: 0.25
+  volume: 0.20
+  swing_trend: 0.0
+  macd: 0.0
+  stochastic: 0.0
+  williams_r: 0.0
+  support_resistance: 0.0
+  breakout_signal: 0.0
+params:
+  rsi_period: 9
+  bb_period: 14
+  bb_std: 1.8
+risk:
+  tp_atr_multiplier: 2.0
+  sl_atr_multiplier: 1.0
+  max_risk_pct: 0.015
+  trailing_stop: true

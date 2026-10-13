@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradeSignal Pro | Institutional 60 FPS Quant Terminal</title>
+    <!-- Google Fonts: Inter & Outfit & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- TradingView Lightweight Charts Official Standalone Library -->
+    <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body class="dark-theme">
+    <!-- Consolidated 46px Master Command Header -->
+    <header class="master-header" id="master-header">
+        <!-- Left: Brand Logo + Quick Symbol Chips + Search Input -->
+        <div class="header-left">
+            <div class="brand-group">
+                <span class="brand-logo">⚡</span>
+                <span class="brand-title">TradeSignal</span>
+                <span class="brand-badge">PRO</span>
+            </div>
+
+            <div class="symbol-chips" id="symbol-chips">
+                <button class="chip active" data-symbol="BTC-USD">BTC</button>
+                <button class="chip" data-symbol="ETH-USD">ETH</button>
+                <button class="chip" data-symbol="SOL-USD">SOL</button>
+                <button class="chip" data-symbol="XRP-USD">XRP</button>
+                <button class="chip" data-symbol="DOGE-USD">DOGE</button>
+                <button class="chip" data-symbol="ADA-USD">ADA</button>
+                <button class="chip" data-symbol="BNB-USD">BNB</button>
+            </div>
+
+            <div class="custom-symbol-wrapper">
+                <input type="text" id="custom-symbol-input" placeholder="Symbol..." autocomplete="off">
+                <button id="custom-symbol-btn" title="Load Symbol">Go</button>
+            </div>
+        </div>
+
+        <!-- Center: Active Asset Telemetry -->
+        <div class="header-center">
+            <div class="active-asset-strip">
+                <span class="asset-symbol" id="display-symbol">BTC-USD</span>
+                <span class="asset-price" id="display-price">$0.00</span>
+                <span class="asset-change" id="display-change">0.00%</span>
+                <div class="regime-pill neutral" id="market-regime-pill" title="Quantitative Macro Market Regime">
+                    <span class="regime-dot"></span>
+                    <span class="regime-text" id="regime-text">REGIME: DETECTING...</span>
+                </div>
+                <div class="ai-prediction-pill neutral" id="ai-prediction-pill" title="Real-Time AI/ML Forecast & Conviction (Click to View Quant Intel)">
+                    <span class="ai-pill-dot"></span>
+                    <span class="ai-pill-text" id="ai-pill-text">AI: SYNCING...</span>
+                    <span class="ai-pill-badge" id="ai-pill-badge">--%</span>
+                </div>
+                <div class="live-trade-pill" id="live-trade-pill" title="Live Millisecond Raw aggTrade Flow (0ms Buffer)">
+                    <span class="trade-side-dot" id="trade-side-dot"></span>
+                    <span class="trade-tape-text" id="trade-tape-text">TAPE SYNCED</span>
+                    <span class="trade-speed-badge" id="trade-speed-badge">0 tx/s</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Workspace Modes + Presets + Tools + System Status -->
+        <div class="header-right">
+            <!-- 1-Click Workspace View Switcher -->
+            <div class="workspace-modes" id="workspace-modes">
+                <button class="mode-btn active" data-mode="terminal" title="Terminal View: Chart + Order Book + Execution Ticket">Terminal</button>
+                <button class="mode-btn" data-mode="quant" title="Quant View: AI Predictions + Regime + Signal Drivers">Quant</button>
+                <button class="mode-btn" data-mode="studio" title="Studio View: Strategy Simulation & News Intelligence">Studio</button>
+            </div>
+
+            <!-- Strategy Presets Dropdown & Hidden Legacy Container -->
+            <div class="preset-dropdown-wrap">
+                <div class="preset-chips" id="preset-chips" style="display:none;">
+                    <button class="preset-chip active" data-preset="holy_trinity">👑 Holy Trinity</button>
+                    <button class="preset-chip" data-preset="crypto_scalp">⚡ Crypto Scalp</button>
+                    <button class="preset-chip" data-preset="stock_swing">📈 Stock Swing</button>
+                    <button class="preset-chip" data-preset="balanced">⚙️ All 10</button>
+                </div>
+                <select id="header-preset-select" class="header-preset-select" title="Switch Indicator Strategy Preset">
+                    <option value="holy_trinity">👑 Holy Trinity (EMA+RSI+BB)</option>
+                    <option value="crypto_scalp">⚡ Crypto Scalp (1M-5M)</option>
+                    <option value="stock_swing">📈 Stock Swing (1H-1D)</option>
+                    <option value="balanced">⚙️ All 10 Indicators</option>
+                </select>
+                <div class="active-preset-desc hidden" id="active-preset-desc" style="display:none !important;">👑 Holy Trinity Active</div>
+            </div>
+
+            <!-- WebSocket Connection Status -->
+            <div class="ws-status-badge" id="ws-status-badge" title="Real-time Binance 0-latency WebSocket stream">
+                <span class="ws-dot"></span>
+                <span class="ws-text" id="ws-status-text">WS INIT</span>
+            </div>
+
+            <!-- Signal Sensitivity Slider -->
+            <div class="sensitivity-compact" title="Signal Sensitivity Threshold">
+                <span class="sens-lbl">Sens: <b id="sensitivity-val">0.3</b></span>
+                <input type="range" id="sensitivity-slider" min="0.1" max="0.8" step="0.05" value="0.3">
+            </div>
+
+            <!-- Command Palette Trigger -->
+            <button class="btn-cmd-palette" id="btn-open-cmd" title="Command Launcher (Ctrl+K or /)">
+                <span class="cmd-icon">⌘</span>
+                <kbd class="cmd-kbd">Ctrl+K</kbd>
+            </button>
+
+            <!-- IST Clock -->
+            <div class="ist-clock-badge" id="ist-clock">🇮🇳 --:--:-- IST</div>
+
+            <!-- Instant Refresh -->
+            <button class="btn-refresh" id="btn-refresh" title="Instant Refresh">🔄 Live</button>
+        </div>
+    </header>
+
+    <!-- Full-Width Real-Time Market Ticker Ribbon -->
+    <div class="ticker-ribbon" id="ticker-bar">
+        <div class="ticker-container" id="ticker-container">
+            <div class="ticker-loading">⚡ Connecting to real-time market data feed...</div>
+        </div>
+    </div>
+
+    <!-- Primary Dashboard Layout -->
+    <main class="dashboard-layout" id="dashboard-layout">
+        <!-- Left / Center Stage: Chart & Controls & Bottom Terminal Dock -->
+        <section class="chart-stage">
+            <!-- Chart Control Bar (Timeframe & Overlays) -->
+            <div class="chart-header">
+                <div class="timeframe-bar" id="timeframe-bar">
+                    <button class="tf-btn" data-tf="1m">1M</button>
+                    <button class="tf-btn" data-tf="3m">3M</button>
+                    <button class="tf-btn" data-tf="5m">5M</button>
+                    <button class="tf-btn" data-tf="15m">15M</button>
+                    <button class="tf-btn" data-tf="30m">30M</button>
+                    <button class="tf-btn active" data-tf="1h">1H</button>
+                    <button class="tf-btn" data-tf="4h">4H</button>
+                    <button class="tf-btn" data-tf="1d">1D</button>
+                    <!-- Live Bar Countdown Timer -->
+                    <div class="candle-countdown-badge" id="candle-countdown" title="Remaining time in current candle bar">
+                        <span class="countdown-pulse-dot"></span>
+                        <span class="countdown-val" id="countdown-timer">⏳ 00:00</span>
+                    </div>
+                </div>
+
+                <div class="overlay-tools-bar" id="overlay-tools-bar">
+                    <button class="overlay-btn active" id="btn-toggle-tpsl" data-overlay="tpsl" title="Toggle On-Chart Visual TP & SL Boundary Price Lines">
+                        <span class="btn-dot green"></span> TP/SL
+                    </button>
+                    <button class="overlay-btn active" id="btn-toggle-ml-target" data-overlay="ml" title="Toggle On-Chart AI/ML Predicted Target Price Line">
+                        <span class="btn-dot cyan"></span> AI Target
+                    </button>
+                    <button class="overlay-btn" id="btn-toggle-rsi" data-overlay="rsi" title="Toggle On-Chart RSI Momentum Ribbon">
+                        <span class="btn-dot magenta"></span> RSI
+                    </button>
+                    <button class="overlay-btn" id="btn-toggle-ema" data-overlay="ema" title="Toggle EMA 20, 50, 200 Ribbons">
+                        <span class="btn-dot cyan"></span> EMA
+                    </button>
+                    <button class="overlay-btn" id="btn-toggle-bb" data-overlay="bb" title="Toggle Bollinger Bands Volatility Envelope">
+                        <span class="btn-dot amber"></span> Bollinger
+                    </button>
+                    <button class="overlay-btn" id="btn-toggle-dom" data-overlay="dom" title="Toggle Real-Time Level-2 Order Book (DOM)">
+                        <span class="btn-dot purple"></span> L2 Book
+                    </button>
+                    <button class="overlay-btn" id="btn-toggle-audio" title="Subtle Audio Feedback for Millisecond Trades & Order Fills">
+                        <span class="btn-dot gray" id="audio-dot"></span> Audio
+                    </button>
+                    <!-- Toggle Intel Sidebar Fullscreen Chart -->
+                    <button class="btn-toggle-sidebar" id="btn-toggle-sidebar" title="Toggle Intel Sidebar / Fullscreen Chart Mode">
+                        <span class="sidebar-toggle-glyph" id="sidebar-toggle-glyph">⇥</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Chart Stage Body (TradingView Canvas + L2 DOM Ladder) -->
+            <div class="chart-stage-body">
+                <!-- TradingView Hardware-Accelerated 60 FPS Canvas -->
+                <div class="chart-container-wrapper">
+                    <div id="tv-chart" class="tv-chart"></div>
+                    <div class="chart-legend" id="chart-legend">
+                        <span class="legend-indicator">🎯 <b>Signals Active:</b> Price Action & Triggers</span>
+                        <span class="legend-stats" id="legend-stats">O: - H: - L: - C: -</span>
+                    </div>
+                    <div id="chart-loading" class="chart-loading hidden">
+                        <div class="spinner"></div>
+                        <span>Loading Data...</span>
+                    </div>
+                </div>
+
+                <!-- Real-Time Level-2 Order Book (DOM) Ladder -->
+                <aside class="dom-ladder-panel hidden" id="dom-ladder-panel">
+                    <div class="dom-header">
+                        <div class="dom-title-wrap">
+                            <span class="dom-dot live"></span>
+                            <span class="dom-title">L2 ORDER BOOK</span>
+                        </div>
+                        <span class="dom-spread" id="dom-spread-badge">Spread: $0.01</span>
+                    </div>
+
+                    <div class="dom-cols-header">
+                        <span>PRICE ($)</span>
+                        <span>SIZE</span>
+                        <span>TOTAL</span>
+                    </div>
+
+                    <!-- Asks Ladder (Red / Sell) -->
+                    <div class="dom-ladder-table dom-asks" id="dom-asks-list">
+                        <div class="dom-empty">Syncing depth...</div>
+                    </div>
+
+                    <!-- Mid-Market Mark Price Strip -->
+                    <div class="dom-mid-strip">
+                        <span class="dom-mid-price" id="dom-mid-price">$0.00</span>
+                        <span class="dom-mid-spread" id="dom-mid-spread">0.00%</span>
+                    </div>
+
+                    <!-- Bids Ladder (Green / Buy) -->
+                    <div class="dom-ladder-table dom-bids" id="dom-bids-list">
+                        <div class="dom-empty">Syncing depth...</div>
+                    </div>
+
+                    <!-- Order Flow Imbalance Gauge -->
+                    <div class="dom-imbalance-wrap">
+                        <div class="imbalance-labels">
+                            <span class="bids-pct" id="dom-bids-pct">50% Bids</span>
+                            <span class="asks-pct" id="dom-asks-pct">50% Asks</span>
+                        </div>
+                        <div class="imbalance-bar">
+                            <div class="imbalance-bids-fill" id="dom-imbalance-bids" style="width: 50%;"></div>
+                            <div class="imbalance-asks-fill" id="dom-imbalance-asks" style="width: 50%;"></div>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+
+            <!-- Wide Institutional Paper Trading Terminal Dock -->
+            <section class="paper-terminal-dock" id="paper-terminal-dock">
+                <div class="dock-header">
+                    <div class="dock-header-left">
+                        <div class="dock-tabs" id="dock-tabs">
+                            <button class="dock-tab active" data-tab="positions">
+                                Positions <span class="dock-tab-badge" id="pt-tab-pos-count">0</span>
+                            </button>
+                            <button class="dock-tab" data-tab="orders">
+                                Orders <span class="dock-tab-badge" id="pt-tab-orders-count">0</span>
+                            </button>
+                            <button class="dock-tab" data-tab="history">
+                                History <span class="dock-tab-badge" id="pt-tab-hist-count">0</span>
+                            </button>
+                            <button class="dock-tab" data-tab="analytics">
+                                Analytics
+                            </button>
+                            <button class="dock-tab" data-tab="news">
+                                News <span class="dock-tab-badge" id="pt-tab-news-badge">LIVE</span>
+                            </button>
+                            <button class="dock-tab" data-tab="backtest">
+                                Backtest
+                            </button>
+                        </div>
+                    </div>
+                    <div class="dock-header-right">
+                        <div class="dock-metric-pill">
+                            <span class="pill-lbl">EQUITY</span>
+                            <span class="pill-val" id="dock-equity">$100,000.00</span>
+                        </div>
+                        <div class="dock-metric-pill">
+                            <span class="pill-lbl">AVAIL</span>
+                            <span class="pill-val" id="dock-avail-margin">$100,000.00</span>
+                        </div>
+                        <div class="dock-metric-pill">
+                            <span class="pill-lbl">UPnL</span>
+                            <span class="pill-val neutral" id="dock-unrealized-pnl">$0.00 (0.0%)</span>
+                        </div>
+                        <div class="dock-metric-pill ap-pill" id="dock-ap-pill" title="Quant Auto-Pilot Status">
+                            <span class="pill-lbl">BOT</span>
+                            <span class="pill-val neutral" id="dock-ap-status">OFF</span>
+                        </div>
+                        <div class="dock-actions">
+                            <button class="dock-btn-sm" id="btn-dock-minimize" title="Minimize Dock">_</button>
+                            <button class="dock-btn-sm" id="btn-dock-expand" title="Expand Dock">⤢</button>
+                            <button class="dock-btn-sm" id="btn-dock-reset" title="Reset Balance">↺</button>
+                            <button class="dock-btn-sm" id="btn-dock-export" title="Export CSV">📥</button>
+                            <button class="dock-btn-sm" id="btn-dock-toggle" title="Collapse/Expand">▾</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="dock-body" id="dock-body">
+                    <!-- Tab 1: Active Open Positions Table -->
+                    <div class="dock-panel active" id="dock-panel-positions">
+                        <div class="table-responsive">
+                            <table class="dock-table">
+                                <thead>
+                                    <tr>
+                                        <th>Asset</th>
+                                        <th>Side</th>
+                                        <th>Size (Qty)</th>
+                                        <th>Notional</th>
+                                        <th>Entry Price</th>
+                                        <th>Mark Price</th>
+                                        <th>Est. Liq Price</th>
+                                        <th>Margin (Lev)</th>
+                                        <th>TP / SL</th>
+                                        <th>Unrealized PnL</th>
+                                        <th style="text-align: right;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dock-positions-tbody">
+                                    <tr class="table-empty-row">
+                                        <td colspan="11">No active positions. Execute orders from the Pro Order Ticket to open positions.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Tab 2: Pending Limit & Stop Orders Table -->
+                    <div class="dock-panel" id="dock-panel-orders">
+                        <div class="table-responsive">
+                            <table class="dock-table">
+                                <thead>
+                                    <tr>
+                                        <th>Order ID</th>
+                                        <th>Asset</th>
+                                        <th>Order Type</th>
+                                        <th>Side</th>
+                                        <th>Trigger / Limit Price</th>
+                                        <th>Mark Price</th>
+                                        <th>Size (Qty)</th>
+                                        <th>Margin (Lev)</th>
+                                        <th>TP / SL Targets</th>
+                                        <th>Created Time</th>
+                                        <th style="text-align: right;">Cancel</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dock-orders-tbody">
+                                    <tr class="table-empty-row">
+                                        <td colspan="11">No open limit or stop orders. Set a limit price in the order ticket to stage orders.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Tab 3: Closed Trade Journal History Table -->
+                    <div class="dock-panel" id="dock-panel-history">
+                        <div class="table-responsive">
+                            <table class="dock-table">
+                                <thead>
+                                    <tr>
+                                        <th>Asset</th>
+                                        <th>Side</th>
+                                        <th>Entry Time</th>
+                                        <th>Exit Time</th>
+                                        <th>Entry Price</th>
+                                        <th>Exit Price</th>
+                                        <th>Net Realized PnL</th>
+                                        <th>Return (%)</th>
+                                        <th>Exit Rationale</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dock-history-tbody">
+                                    <tr class="table-empty-row">
+                                        <td colspan="9">No closed trades yet. Your trade performance journal will appear here upon closing positions.</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Tab 4: Performance Analytics & Quant Equity Cockpit -->
+                    <div class="dock-panel" id="dock-panel-analytics">
+                        <div class="analytics-metrics-grid">
+                            <div class="metric-card">
+                                <div class="m-card-title">WIN RATE</div>
+                                <div class="m-card-val" id="analytics-win-rate">0.0%</div>
+                                <div class="m-card-sub" id="analytics-win-counts">0 Wins / 0 Losses</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="m-card-title">NET REALIZED PnL</div>
+                                <div class="m-card-val" id="analytics-net-pnl">$0.00</div>
+                                <div class="m-card-sub" id="analytics-gross-fees">Est. Fees: $0.00</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="m-card-title">PROFIT FACTOR</div>
+                                <div class="m-card-val" id="analytics-profit-factor">0.00</div>
+                                <div class="m-card-sub">Gross Win / Gross Loss</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="m-card-title">TOTAL TRADES</div>
+                                <div class="m-card-val" id="analytics-total-trades">0</div>
+                                <div class="m-card-sub" id="analytics-open-count">0 Open Positions</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="m-card-title">AVG TRADE RETURN</div>
+                                <div class="m-card-val" id="analytics-avg-return">0.00%</div>
+                                <div class="m-card-sub">Per completed position</div>
+                            </div>
+                            <div class="metric-card">
+                                <div class="m-card-title">BEST / WORST TRADE</div>
+                                <div class="m-card-val" id="analytics-best-worst">$0 / $0</div>
+                                <div class="m-card-sub">Max single gain & loss</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab 5: Real-Time News & Sentiment Intelligence Hub -->
+                    <div class="dock-panel" id="dock-panel-news">
+                        <div class="news-hub-layout">
+                            <!-- Left: Sentiment Thermometer & Fundamentals Card -->
+                            <div class="news-sentiment-card">
+                                <div class="ns-card-header">
+                                    <span class="ns-title">NLP SENTIMENT GAUGE</span>
+                                    <span class="sentiment-pill neutral" id="sentiment-gauge-badge">NEUTRAL</span>
+                                </div>
+                                <div class="sentiment-meter-wrap">
+                                    <div class="meter-bar-bg">
+                                        <div class="meter-fill" id="sentiment-meter-fill" style="width: 50%;"></div>
+                                        <div class="meter-marker" id="sentiment-meter-marker" style="left: 50%;"></div>
+                                    </div>
+                                    <div class="meter-labels">
+                                        <span>Extreme Fear (-1.0)</span>
+                                        <span>Neutral (0.0)</span>
+                                        <span>Extreme Greed (+1.0)</span>
+                                    </div>
+                                </div>
+                                <div class="sentiment-score-num" id="sentiment-score-text">Polarity Score: 0.00</div>
+
+                                <div class="fundamental-mini-grid" id="fundamental-mini-grid">
+                                    <div class="f-item">
+                                        <span class="f-lbl">MARKET CAP</span>
+                                        <span class="f-val" id="f-mcap">--</span>
+                                    </div>
+                                    <div class="f-item">
+                                        <span class="f-lbl">52W HIGH / LOW</span>
+                                        <span class="f-val" id="f-52w">--</span>
+                                    </div>
+                                    <div class="f-item">
+                                        <span class="f-lbl">P/E RATIO</span>
+                                        <span class="f-val" id="f-pe">--</span>
+                                    </div>
+                                    <div class="f-item">
+                                        <span class="f-lbl">CONSENSUS TARGET</span>
+                                        <span class="f-val" id="f-target">--</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Right: Live Headlines Feed -->
+                            <div class="news-headlines-column">
+                                <div class="headlines-header">
+                                    <span class="headlines-title">LIVE FINANCIAL CATALYSTS & HEADLINES</span>
+                                    <span class="headlines-count" id="headlines-count-tag">0 Articles</span>
+                                </div>
+                                <div class="news-articles-list" id="news-articles-list">
+                                    <div class="news-empty">Fetching latest market headlines...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tab 6: Interactive Backtesting & Equity Curve Studio -->
+                    <div class="dock-panel" id="dock-panel-backtest">
+                        <div class="backtest-studio-layout">
+                            <!-- Top: Strategy Config Bar -->
+                            <div class="backtest-controls-bar">
+                                <div class="bt-control-item">
+                                    <label class="bt-lbl">Strategy Preset:</label>
+                                    <select id="bt-preset-select" class="bt-select">
+                                        <option value="holy_trinity">👑 Holy Trinity (EMA+RSI+BB)</option>
+                                        <option value="crypto_scalp">⚡ Crypto Scalp (Momentum)</option>
+                                        <option value="stock_swing">📈 Stock Swing (Trend)</option>
+                                        <option value="balanced">⚙️ Full Quant (10 Indicators)</option>
+                                    </select>
+                                </div>
+                                <div class="bt-control-item">
+                                    <label class="bt-lbl">Historical Horizon:</label>
+                                    <div class="bt-chips" id="bt-period-chips">
+                                        <button class="bt-chip" data-period="1mo">1M</button>
+                                        <button class="bt-chip active" data-period="3mo">3M</button>
+                                        <button class="bt-chip" data-period="6mo">6M</button>
+                                        <button class="bt-chip" data-period="1y">1Y</button>
+                                    </div>
+                                </div>
+                                <div class="bt-control-item">
+                                    <label class="bt-lbl">Initial Capital ($):</label>
+                                    <input type="number" id="bt-initial-capital" class="bt-input" value="100000" step="5000">
+                                </div>
+                                <div class="bt-control-item">
+                                    <label class="bt-lbl">Risk (SL / TP %):</label>
+                                    <div class="bt-sl-tp-inputs">
+                                        <input type="number" id="bt-sl-pct" class="bt-input-sm" value="3.0" step="0.5" title="Stop Loss %">
+                                        <span>/</span>
+                                        <input type="number" id="bt-tp-pct" class="bt-input-sm" value="6.0" step="0.5" title="Take Profit %">
+                                    </div>
+                                </div>
+                                <button class="btn-run-backtest" id="btn-run-backtest">
+                                    <span class="btn-icon">🚀</span> Run Simulation
+                                </button>
+                            </div>
+
+                            <!-- Middle: Institutional Performance KPI Summary Grid -->
+                            <div class="backtest-kpi-grid">
+                                <div class="bt-kpi-card" id="bt-card-return">
+                                    <div class="bt-kpi-title">TOTAL STRATEGY RETURN</div>
+                                    <div class="bt-kpi-val" id="bt-total-return">--</div>
+                                    <div class="bt-kpi-sub" id="bt-alpha-sub">Alpha vs Buy & Hold: --</div>
+                                </div>
+                                <div class="bt-kpi-card" id="bt-card-sharpe">
+                                    <div class="bt-kpi-title">SHARPE & SORTINO RATIO</div>
+                                    <div class="bt-kpi-val" id="bt-sharpe-val">--</div>
+                                    <div class="bt-kpi-sub" id="bt-sortino-sub">Sortino: -- | Calmar: --</div>
+                                </div>
+                                <div class="bt-kpi-card" id="bt-card-winrate">
+                                    <div class="bt-kpi-title">WIN RATE & PROFIT FACTOR</div>
+                                    <div class="bt-kpi-val" id="bt-winrate-val">--</div>
+                                    <div class="bt-kpi-sub" id="bt-trades-sub">0 Trades (-- Wins / -- Losses)</div>
+                                </div>
+                                <div class="bt-kpi-card" id="bt-card-drawdown">
+                                    <div class="bt-kpi-title">MAX DRAWDOWN & FEES</div>
+                                    <div class="bt-kpi-val" id="bt-drawdown-val">--</div>
+                                    <div class="bt-kpi-sub" id="bt-commission-sub">Total Comm: $0.00</div>
+                                </div>
+                            </div>
+
+                            <!-- Bottom: Equity Curve Canvas Visualization + Trade Log Split -->
+                            <div class="backtest-split-view">
+                                <div class="equity-curve-panel">
+                                    <div class="ec-header">
+                                        <span class="ec-title">📈 PORTFOLIO EQUITY CURVE ($)</span>
+                                        <span class="ec-subtitle" id="bt-equity-subtitle">Starting: $100,000.00</span>
+                                    </div>
+                                    <div class="equity-canvas-container" id="equity-canvas-container">
+                                        <canvas id="equity-curve-canvas"></canvas>
+                                    </div>
+                                </div>
+                                <div class="backtest-trades-panel">
+                                    <div class="bt-trades-header">
+                                        <span class="bt-trades-title">SIMULATED EXECUTION JOURNAL</span>
+                                        <span class="bt-trades-badge" id="bt-trades-count">0 Trades</span>
+                                    </div>
+                                    <div class="bt-trades-table-wrap">
+                                        <table class="bt-trades-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>Type</th>
+                                                    <th>Price</th>
+                                                    <th>PnL ($)</th>
+                                                    <th>ROI (%)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="bt-trades-tbody">
+                                                <tr><td colspan="4" class="table-empty-row">Run simulation to view executed trades.</td></tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </section>
+
+        <!-- Right Side Trade Intel & Signal Panel (Modular 3-Tab Architecture) -->
+        <aside class="intel-sidebar" id="intel-sidebar">
+            <!-- Sidebar Segmented Navigation Tabs -->
+            <div class="sidebar-tabs-nav" id="sidebar-tabs-nav">
+                <button class="sb-tab active" data-sb-tab="execute">
+                    <span class="sb-tab-icon">⚡</span> EXECUTE & BOT
+                </button>
+                <button class="sb-tab" data-sb-tab="quant">
+                    <span class="sb-tab-icon">🧠</span> QUANT & AI
+                </button>
+                <button class="sb-tab" data-sb-tab="intel">
+                    <span class="sb-tab-icon">📊</span> INTEL & LOG
+                </button>
+            </div>
+
+            <!-- Tab Panel 1: Execute & Quant Auto-Pilot (Default Active) -->
+            <div class="sb-tab-panel active" id="sb-panel-execute">
+                <!-- Pro Order Ticket & Execution Simulator -->
+                <div class="intel-card order-ticket-card" id="paper-order-ticket">
+                    <div class="card-eyebrow-row">
+                        <span class="card-eyebrow">⚡ PRO ORDER TICKET</span>
+                        <span class="ticket-balance" id="ticket-balance-tag">$100,000.00</span>
+                    </div>
+
+                    <!-- Quant Auto-Pilot Autonomous Bot Box -->
+                    <div class="auto-pilot-box" id="auto-pilot-box">
+                        <div class="ap-header-row">
+                            <div class="ap-title-left">
+                                <span class="ap-icon-pulse">🤖</span>
+                                <div>
+                                    <div class="ap-title">QUANT AUTO-PILOT</div>
+                                    <div class="ap-status-tag" id="ap-status-tag">DISARMED</div>
+                                </div>
+                            </div>
+                            <label class="switch-toggle" title="Toggle Autonomous Algorithmic Trading">
+                                <input type="checkbox" id="toggle-autopilot">
+                                <span class="slider-toggle round"></span>
+                            </label>
+                        </div>
+
+                        <div class="ap-guardrails-panel hidden" id="ap-guardrails-panel">
+                            <div class="ap-param-row">
+                                <span class="ap-param-label">Min Conviction:</span>
+                                <div class="ap-chips-group" id="ap-threshold-chips">
+                                    <button class="ap-chip" data-val="0.60">60%</button>
+                                    <button class="ap-chip active" data-val="0.70">70%</button>
+                                    <button class="ap-chip" data-val="0.75">75%</button>
+                                    <button class="ap-chip" data-val="0.80">80%</button>
+                                </div>
+                            </div>
+                            <div class="ap-param-row">
+                                <span class="ap-param-label">Allocation/Trade:</span>
+                                <div class="ap-chips-group" id="ap-alloc-chips">
+                                    <button class="ap-chip" data-val="0.05">5%</button>
+                                    <button class="ap-chip active" data-val="0.10">10%</button>
+                                    <button class="ap-chip" data-val="0.20">20%</button>
+                                </div>
+                            </div>
+                            <div class="ap-param-row">
+                                <span class="ap-param-label">AI Consensus Filter:</span>
+                                <div class="ap-toggle-wrap">
+                                    <label class="switch-toggle-sm" title="Require Machine Learning directional alignment before executing trade">
+                                        <input type="checkbox" id="toggle-ap-ml-filter" checked>
+                                        <span class="slider-toggle-sm round"></span>
+                                    </label>
+                                    <span class="ap-filter-status" id="ap-ml-filter-status">ENFORCED</span>
+                                </div>
+                            </div>
+                            <div class="ap-safety-strip">
+                                <span>🛡️ Circuit Breaker: <b>-3.0% Daily Stop</b></span>
+                                <span>Max Concurrent: <b>3 Positions</b></span>
+                            </div>
+                            <div class="ap-regime-banner" id="ap-regime-banner">
+                                <span class="ap-banner-icon">🛡️</span>
+                                <div class="ap-banner-text" id="ap-banner-text">Regime Guard: Syncing filter...</div>
+                            </div>
+                            <button class="btn-ap-kill" id="btn-ap-kill" title="Emergency disarm bot and market close all positions">
+                                🛑 EMERGENCY ALL-STOP
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Order Mode Tabs -->
+                    <div class="order-mode-tabs" id="order-mode-tabs">
+                        <button class="order-mode-btn active" data-mode="market">Market</button>
+                        <button class="order-mode-btn" data-mode="limit">Limit</button>
+                        <button class="order-mode-btn" data-mode="stop">Stop</button>
+                    </div>
+
+                    <!-- Side Selector -->
+                    <div class="order-side-row">
+                        <button class="side-btn side-long active" id="btn-side-long">
+                            <span>▲ LONG / BUY</span>
+                        </button>
+                        <button class="side-btn side-short" id="btn-side-short">
+                            <span>▼ SHORT / SELL</span>
+                        </button>
+                    </div>
+
+                    <!-- Limit / Stop Price Input (Conditional) -->
+                    <div class="ticket-field-row hidden" id="field-order-price-row">
+                        <label for="input-order-price" id="lbl-order-price">Limit Price ($):</label>
+                        <div class="ticket-input-wrap">
+                            <input type="number" id="input-order-price" placeholder="Trigger / Limit Price" step="any">
+                        </div>
+                    </div>
+
+                    <!-- Leverage Selector -->
+                    <div class="ticket-field-row">
+                        <label>Leverage:</label>
+                        <div class="leverage-chips" id="leverage-chips">
+                            <button class="lev-chip active" data-lev="1">1x</button>
+                            <button class="lev-chip" data-lev="2">2x</button>
+                            <button class="lev-chip" data-lev="5">5x</button>
+                            <button class="lev-chip" data-lev="10">10x</button>
+                            <button class="lev-chip" data-lev="20">20x</button>
+                        </div>
+                    </div>
+
+                    <!-- Position Margin Sizing -->
+                    <div class="ticket-field-row">
+                        <div class="field-label-between">
+                            <label for="input-order-margin">Margin Allocation ($):</label>
+                            <span class="pct-label" id="pct-margin-label">10% of Avail</span>
+                        </div>
+                        <div class="ticket-input-wrap">
+                            <input type="number" id="input-order-margin" value="10000" min="10" step="10">
+                        </div>
+                        <div class="margin-pct-chips" id="margin-pct-chips">
+                            <button class="pct-chip" data-pct="0.05">5%</button>
+                            <button class="pct-chip active" data-pct="0.10">10%</button>
+                            <button class="pct-chip" data-pct="0.25">25%</button>
+                            <button class="pct-chip" data-pct="0.50">50%</button>
+                            <button class="pct-chip" data-pct="1.00">MAX</button>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic TP & SL Inputs with Auto-Fill button -->
+                    <div class="ticket-targets-section">
+                        <div class="targets-header-row">
+                            <span class="targets-sec-label">RISK TARGETS (TP / SL):</span>
+                            <button class="btn-copy-signal" id="btn-copy-signal" title="Auto-populate TP & SL from dynamic ATR/ML forecast targets">
+                                ⚡ Copy Signal
+                            </button>
+                        </div>
+                        <div class="ticket-targets-inputs">
+                            <div class="ticket-input-group">
+                                <label for="input-order-tp">TP Target ($):</label>
+                                <input type="number" id="input-order-tp" placeholder="Take Profit" step="any">
+                            </div>
+                            <div class="ticket-input-group">
+                                <label for="input-order-sl">SL Target ($):</label>
+                                <input type="number" id="input-order-sl" placeholder="Stop Loss" step="any">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Order Summary Breakdown -->
+                    <div class="order-summary-box">
+                        <div class="summary-line">
+                            <span>Notional Size:</span>
+                            <span id="summary-notional">$10,000.00</span>
+                        </div>
+                        <div class="summary-line">
+                            <span>Est. Contract Qty:</span>
+                            <span id="summary-qty">--</span>
+                        </div>
+                        <div class="summary-line">
+                            <span>Est. Liq Price:</span>
+                            <span id="summary-liq" class="liq-safe">None (Spot 1x)</span>
+                        </div>
+                        <div class="summary-line">
+                            <span>Taker Fee (0.04%):</span>
+                            <span id="summary-fee">$4.00</span>
+                        </div>
+                    </div>
+
+                    <!-- Primary Submit Action Button -->
+                    <button class="btn-submit-order side-long" id="btn-submit-order">
+                        ⚡ Place Market Long Order
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tab Panel 2: Quant & AI Forecast -->
+            <div class="sb-tab-panel" id="sb-panel-quant" style="display: none;">
+                <!-- Current Quantitative Signal Card -->
+                <div class="intel-card signal-box" id="signal-card">
+                    <div class="card-eyebrow-row">
+                        <span class="card-eyebrow">ACTIVE QUANT DECISION</span>
+                        <span class="signal-strategy-pill" id="signal-strategy-pill">👑 Holy Trinity</span>
+                    </div>
+                    <div class="signal-headline">
+                        <span class="signal-badge" id="signal-action-badge">HOLD</span>
+                        <span class="signal-score" id="signal-score-badge">0.0%</span>
+                    </div>
+                    <div class="confidence-bar-bg">
+                        <div class="confidence-bar-fill" id="confidence-bar-fill" style="width: 50%;"></div>
+                    </div>
+                    <div class="signal-consensus-strip" id="signal-consensus-strip">
+                        <span class="consensus-lbl">CORE CONSENSUS:</span>
+                        <div class="consensus-pills" id="consensus-pills">
+                            <span class="cons-pill on" id="cons-trend">Trend</span>
+                            <span class="cons-pill on" id="cons-mom">Momentum</span>
+                            <span class="cons-pill on" id="cons-vol">Volatility</span>
+                        </div>
+                    </div>
+                    <div class="signal-rationale" id="signal-rationale">
+                        Awaiting calculation...
+                    </div>
+                </div>
+
+                <!-- Machine Learning & Deep Learning Predictive Forecast Card -->
+                <div class="intel-card ml-card" id="ml-prediction-card">
+                    <div class="card-eyebrow-row">
+                        <span class="card-eyebrow">🧠 AI / ML PREDICTIVE FORECAST</span>
+                        <div class="model-switch" id="model-switch">
+                            <button class="model-toggle-btn active" data-model="ml" title="Quant ML: Multi-factor statistical learning ensemble">Quant ML</button>
+                            <button class="model-toggle-btn" data-model="dl" title="Deep Learning: PyTorch LSTM sequence neural network">Deep LSTM</button>
+                        </div>
+                    </div>
+
+                    <div class="ml-forecast-headline">
+                        <span class="ml-direction-badge" id="ml-direction-badge">CALCULATING</span>
+                        <div class="ml-headline-right">
+                            <span class="ml-expected-return" id="ml-expected-return">-- (3 Bars)</span>
+                            <span class="ml-predicted-target" id="ml-predicted-target">Target: $0.00</span>
+                        </div>
+                    </div>
+
+                    <!-- Forecast Horizon Selector -->
+                    <div class="ml-horizon-strip">
+                        <span class="horizon-label">HORIZON:</span>
+                        <div class="horizon-chips" id="horizon-chips">
+                            <button class="horizon-chip" data-horizon="1">1B</button>
+                            <button class="horizon-chip active" data-horizon="3">3B</button>
+                            <button class="horizon-chip" data-horizon="5">5B</button>
+                            <button class="horizon-chip" data-horizon="10">10B</button>
+                        </div>
+                        <button class="btn-run-inference" id="btn-run-inference" title="Run Fresh Model Inference">⚡ Infer</button>
+                    </div>
+
+                    <!-- Multi-Class Probability Gauge & Dial -->
+                    <div class="ml-prob-gauge" id="ml-prob-gauge">
+                        <div class="prob-cards-grid">
+                            <div class="prob-stat-card bull" id="card-prob-bull">
+                                <span class="stat-lbl">▲ BULL</span>
+                                <span class="stat-num" id="prob-bull">0%</span>
+                                <div class="stat-track"><div class="stat-fill-bull" id="stat-fill-bull" style="width: 33%;"></div></div>
+                            </div>
+                            <div class="prob-stat-card neut" id="card-prob-neut">
+                                <span class="stat-lbl">■ NEUT</span>
+                                <span class="stat-num" id="prob-neut">0%</span>
+                                <div class="stat-track"><div class="stat-fill-neut" id="stat-fill-neut" style="width: 34%;"></div></div>
+                            </div>
+                            <div class="prob-stat-card bear" id="card-prob-bear">
+                                <span class="stat-lbl">▼ BEAR</span>
+                                <span class="stat-num" id="prob-bear">0%</span>
+                                <div class="stat-track"><div class="stat-fill-bear" id="stat-fill-bear" style="width: 33%;"></div></div>
+                            </div>
+                        </div>
+                        <div class="multi-prob-bar">
+                            <div class="prob-seg seg-bull" id="seg-bull" style="width: 33%;"></div>
+                            <div class="prob-seg seg-neut" id="seg-neut" style="width: 34%;"></div>
+                            <div class="prob-seg seg-bear" id="seg-bear" style="width: 33%;"></div>
+                        </div>
+                    </div>
+
+                    <div class="ml-meta-row">
+                        <span class="ml-edge-tag" id="ml-edge-tag">Edge: +0.0% vs Random</span>
+                        <span class="ml-acc-tag" id="ml-acc-tag">Acc: 62%</span>
+                        <span class="ml-model-tag" id="ml-model-tag">Quant ML Active</span>
+                    </div>
+
+                    <!-- Top Feature Drivers -->
+                    <div class="factors-section-head">
+                        <span class="factors-title">QUANTITATIVE FACTOR ATTRIBUTION</span>
+                        <span class="factors-count-badge">Top 4 Factors</span>
+                    </div>
+                    <div class="ml-factors-list" id="ml-factors-list">
+                        <!-- Rendered dynamically -->
+                    </div>
+                </div>
+
+                <!-- Execution Target Card: Take Profit & Stop Loss -->
+                <div class="intel-card targets-box">
+                    <div class="card-eyebrow">DYNAMIC RISK EXECUTION (ATR)</div>
+                    <div class="targets-grid">
+                        <div class="target-item tp-item">
+                            <span class="target-label">🎯 TAKE PROFIT</span>
+                            <span class="target-value" id="val-tp">$0.00</span>
+                        </div>
+                        <div class="target-item sl-item">
+                            <span class="target-label">🛡️ STOP LOSS</span>
+                            <span class="target-value" id="val-sl">$0.00</span>
+                        </div>
+                    </div>
+                    <div class="rr-ratio" id="rr-ratio">Risk : Reward = 1 : 1.33</div>
+                </div>
+            </div>
+
+            <!-- Tab Panel 3: Intel, MTF Matrix & Trade Log -->
+            <div class="sb-tab-panel" id="sb-panel-intel" style="display: none;">
+                <!-- Multi-Timeframe (MTF) Confluence Heatmap Matrix -->
+                <div class="intel-card mtf-card">
+                    <div class="card-eyebrow-row">
+                        <span class="card-eyebrow">🌐 MULTI-TIMEFRAME CONFLUENCE</span>
+                        <span class="mtf-badge" id="mtf-verdict-badge">CALCULATING...</span>
+                    </div>
+                    <div class="mtf-summary" id="mtf-summary-text">Synchronizing across 6 independent momentum frames...</div>
+                    <div class="mtf-pill-grid" id="mtf-pills">
+                        <div class="mtf-pill" data-tf="1m"><span class="tf-label">1M</span><span class="pill-status">-</span></div>
+                        <div class="mtf-pill" data-tf="5m"><span class="tf-label">5M</span><span class="pill-status">-</span></div>
+                        <div class="mtf-pill" data-tf="15m"><span class="tf-label">15M</span><span class="pill-status">-</span></div>
+                        <div class="mtf-pill" data-tf="1h"><span class="tf-label">1H</span><span class="pill-status">-</span></div>
+                        <div class="mtf-pill" data-tf="4h"><span class="tf-label">4H</span><span class="pill-status">-</span></div>
+                        <div class="mtf-pill" data-tf="1d"><span class="tf-label">1D</span><span class="pill-status">-</span></div>
+                    </div>
+                </div>
+
+                <!-- Automated AI Quant Thesis -->
+                <div class="intel-card thesis-box">
+                    <div class="card-eyebrow">💡 AUTOMATED QUANT THESIS</div>
+                    <div class="thesis-content" id="thesis-text">
+                        Initializing market thesis narrative...
+                    </div>
+                </div>
+
+                <!-- Recent Signal Log -->
+                <div class="intel-card signal-log-box">
+                    <div class="card-eyebrow">RECENT TRIGGERED SIGNALS</div>
+                    <div class="signal-log-list" id="signal-log-list">
+                        <div class="log-empty">Scanning for recent trigger transitions...</div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- Institutional Command Palette Modal (Ctrl+K or /) -->
+    <div class="cmd-palette-backdrop hidden" id="cmd-palette-backdrop">
+        <div class="cmd-palette-modal">
+            <div class="cmd-input-row">
+                <span class="cmd-search-icon">🔍</span>
+                <input type="text" id="cmd-palette-input" placeholder="Search symbol, timeframe, indicator or command..." autocomplete="off">
+                <span class="cmd-close-esc" id="cmd-close-esc">ESC</span>
+            </div>
+            <div class="cmd-results-list" id="cmd-results-list">
+                <!-- Dynamically populated commands -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Paper Trading Toast Notification System -->
+    <div class="paper-toast-container" id="paper-toast-container"></div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

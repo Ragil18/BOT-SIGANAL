@@ -1,0 +1,45 @@
+strategy_id: balanced
+name: "⚙️ Full Quant (All 10 Indicators)"
+description: "Balanced 10-indicator ensemble model across all technical factors."
+target_timeframes:
+  - "1m"
+  - "5m"
+  - "15m"
+  - "1h"
+  - "4h"
+  - "1d"
+entry_threshold: 0.30
+indicators:
+  - rsi
+  - macd
+  - bollinger
+  - swing_trend
+  - stochastic
+  - williams_r
+  - volume
+  - momentum
+  - support_resistance
+  - breakout_signal
+weights:
+  rsi: 0.20
+  macd: 0.25
+  bollinger: 0.15
+  swing_trend: 0.15
+  stochastic: 0.08
+  williams_r: 0.06
+  volume: 0.04
+  momentum: 0.03
+  support_resistance: 0.02
+  breakout_signal: 0.02
+params:
+  rsi_period: 14
+  macd_fast: 12
+  macd_slow: 26
+  macd_signal: 9
+  bb_period: 20
+  bb_std: 2.0
+risk:
+  tp_atr_multiplier: 2.5
+  sl_atr_multiplier: 1.5
+  max_risk_pct: 0.02
+  trailing_stop: false

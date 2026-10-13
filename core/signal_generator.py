@@ -1,27 +1,109 @@
 import pandas as pd
 import numpy as np
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+from specs.schemas.strategy_spec import load_all_strategy_specs, load_strategy_spec, StrategySpec
+from .sentiment_analyzer import get_sentiment_score
 
 class SignalGenerator:
     """Class for generating trading signals based on technical indicators"""
     
-    def __init__(self):
-        # Enhanced weights for swing trading
-        self.signal_weights = {
-            'rsi': 0.20,
-            'macd': 0.25,  # Higher weight for trend following
-            'bollinger': 0.15,
-            'swing_trend': 0.15,
-            'stochastic': 0.08,
-            'williams_r': 0.06,
-            'volume': 0.04,
-            'momentum': 0.03,
-            'support_resistance': 0.02,
-            'breakout_signal': 0.02
+    # Load declarative YAML strategy specifications validated against StrategySpec
+    _loaded_specs = load_all_strategy_specs()
+    PRESETS = {k: spec.to_preset_dict() for k, spec in _loaded_specs.items()} if _loaded_specs else {
+        'holy_trinity': {
+            'name': '👑 Holy Trinity (EMA + RSI + Bollinger Bands)',
+            'description': 'Best-in-class 3-pillar combo: Trend (EMA) + Momentum (RSI) + Volatility (BB/ATR). Eliminates redundant noise.',
+            'weights': {
+                'rsi': 0.35,
+                'swing_trend': 0.35,
+                'bollinger': 0.30,
+                'macd': 0.0,
+                'stochastic': 0.0,
+                'williams_r': 0.0,
+                'volume': 0.0,
+                'momentum': 0.0,
+                'support_resistance': 0.0,
+                'breakout_signal': 0.0,
+                'sentiment': 0.1
+            }
+        },
+        'crypto_scalp': {
+            'name': '⚡ Crypto Scalping (Fast Momentum)',
+            'description': 'Optimized for high-volatility crypto assets on 1M/5M/15M timeframes.',
+            'weights': {
+                'rsi': 0.30,
+                'bollinger': 0.25,
+                'momentum': 0.25,
+                'volume': 0.20,
+                'swing_trend': 0.0,
+                'macd': 0.0,
+                'stochastic': 0.0,
+                'williams_r': 0.0,
+                'support_resistance': 0.0,
+                'breakout_signal': 0.0,
+                'sentiment': 0.08
+            }
+        },
+        'stock_swing': {
+            'name': '📈 Stock Swing (Macro Trend & Conviction)',
+            'description': 'Optimized for multi-day equity holds on 1H/4H/1D timeframes with volume conviction.',
+            'weights': {
+                'swing_trend': 0.40,
+                'macd': 0.30,
+                'rsi': 0.20,
+                'volume': 0.10,
+                'bollinger': 0.0,
+                'stochastic': 0.0,
+                'williams_r': 0.0,
+                'momentum': 0.0,
+                'support_resistance': 0.0,
+                'breakout_signal': 0.0,
+                'sentiment': 0.07
+            }
+        },
+        'balanced': {
+            'name': '⚙️ Full Quant (All 10 Indicators)',
+            'description': 'Balanced 10-indicator ensemble model across all technical factors.',
+            'weights': {
+                'rsi': 0.20,
+                'macd': 0.25,
+                'bollinger': 0.15,
+                'swing_trend': 0.15,
+                'stochastic': 0.08,
+                'williams_r': 0.06,
+                'volume': 0.04,
+                'momentum': 0.03,
+                'support_resistance': 0.02,
+                'breakout_signal': 0.02,
+                'sentiment': 0.05
+            }
         }
+    }
+
+    def __init__(self, default_preset: str = 'balanced'):
+        self.active_preset = default_preset
+        self.signal_weights = self.PRESETS.get(default_preset, self.PRESETS['balanced'])['weights']
     
-    def generate_signals(self, data: pd.DataFrame, indicators: pd.DataFrame, threshold: float = 0.3) -> pd.DataFrame:
-        """Generate swing trading optimized signals"""
+    def set_preset(self, preset_name: str) -> None:
+        """Dynamically set the active indicator weight preset."""
+        if preset_name in self.PRESETS:
+            self.active_preset = preset_name
+            self.signal_weights = self.PRESETS[preset_name]['weights']
+    
+    @classmethod
+    def get_strategy_spec(cls, preset_name: str) -> Optional[StrategySpec]:
+        """Return the validated StrategySpec contract for a strategy preset."""
+        try:
+            return load_strategy_spec(preset_name)
+        except Exception:
+            return None
+    
+    def generate_signals(self, data: pd.DataFrame, indicators: pd.DataFrame, threshold: float = 0.3, preset: str = None) -> pd.DataFrame:
+        """Generate swing trading optimized signals using specified or active preset"""
+        weights = self.PRESETS.get(preset, {}).get('weights', self.signal_weights) if preset else self.signal_weights
+        # Compute sentiment for the instrument (if symbol column present)
+        symbol = data['Symbol'].iloc[0] if 'Symbol' in data.columns else None
+        sentiment_score = get_sentiment_score(symbol) if symbol else 0.0
         signals = pd.DataFrame(index=data.index)
         
         # Calculate individual signal components for swing trading
@@ -39,20 +121,22 @@ class SignalGenerator:
         # Per-indicator contributions, kept alongside the final score so a BUY/SELL call
         # is auditable (which sub-signals actually drove it) rather than only narrated.
         contributions = {
-            'rsi': rsi_signals * self.signal_weights['rsi'],
-            'macd': macd_signals * self.signal_weights['macd'],
-            'bollinger': bb_signals * self.signal_weights['bollinger'],
-            'swing_trend': swing_trend_signals * self.signal_weights['swing_trend'],
-            'stochastic': stoch_signals * self.signal_weights['stochastic'],
-            'williams_r': williams_signals * self.signal_weights['williams_r'],
-            'volume': volume_signals * self.signal_weights['volume'],
-            'momentum': momentum_signals * self.signal_weights['momentum'],
-            'support_resistance': support_resistance_signals * self.signal_weights['support_resistance'],
-            'breakout_signal': breakout_signals * self.signal_weights['breakout_signal'],
+            'rsi': rsi_signals * weights['rsi'],
+            'macd': macd_signals * weights['macd'],
+            'bollinger': bb_signals * weights['bollinger'],
+            'swing_trend': swing_trend_signals * weights['swing_trend'],
+            'stochastic': stoch_signals * weights['stochastic'],
+            'williams_r': williams_signals * weights['williams_r'],
+            'volume': volume_signals * weights['volume'],
+            'momentum': momentum_signals * weights['momentum'],
+            'support_resistance': support_resistance_signals * weights['support_resistance'],
+            'breakout_signal': breakout_signals * weights['breakout_signal'],
         }
 
         # Combine signals with swing trading weights
         combined_score = sum(contributions.values())
+        # Incorporate sentiment (scaled by weight)
+        combined_score += sentiment_score * weights.get('sentiment', 0.0)
 
         # Generate final signals
         signals['score'] = combined_score

@@ -7,3 +7,5 @@ __pycache__/
 app_state.db
 .screenshots/
 streamlit_server.log
+*.log
+.agents/

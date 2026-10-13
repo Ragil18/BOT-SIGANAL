@@ -100,8 +100,8 @@ class Backtester:
 
             # Execute trades
             if signal_type == 'BUY' and portfolio['position'] == 0:
-                # Enter long position
-                shares_to_buy = int((portfolio['cash'] * position_size_pct) / (execution_price * (1 + self.commission)))
+                raw_shares = (portfolio['cash'] * position_size_pct) / (execution_price * (1 + self.commission))
+                shares_to_buy = int(raw_shares) if raw_shares >= 1 else round(raw_shares, 6)
                 if shares_to_buy > 0:
                     cost = shares_to_buy * execution_price
                     commission_cost = cost * self.commission

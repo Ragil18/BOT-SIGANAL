@@ -8,66 +8,82 @@ class TechnicalIndicators:
     def __init__(self):
         pass
     
-    def calculate_all(self, data: pd.DataFrame, params: Dict[str, Any]) -> pd.DataFrame:
-        """Calculate all technical indicators optimized for swing trading"""
+    def calculate_all(self, data: pd.DataFrame, params: Optional[Dict[str, Any]] = None, preset: Optional[str] = None) -> pd.DataFrame:
+        """Calculate technical indicators optimized for swing trading with optional preset-specific acceleration."""
+        if params is None:
+            params = {}
         indicators = pd.DataFrame(index=data.index)
+        close = data['Close']
+        vol = data['Volume'] if 'Volume' in data else pd.Series(0.0, index=data.index)
         
-        # RSI for swing trading
-        indicators['rsi'] = self.calculate_rsi(data['Close'], params.get('rsi_period', 14))
-        indicators['rsi_fast'] = self.calculate_rsi(data['Close'], 9)  # Faster RSI for entries
-        indicators['rsi_slow'] = self.calculate_rsi(data['Close'], 25)  # Slower for trend
-        
+        # 1. Core Trend Pillars (EMA / SMA)
+        indicators['ema_9'] = self.calculate_ema(close, 9)
+        indicators['ema_21'] = self.calculate_ema(close, 21)
+        indicators['ema_50'] = self.calculate_ema(close, 50)
+        indicators['ema_200'] = self.calculate_ema(close, 200)
+        indicators['sma_50'] = self.calculate_sma(close, 50)
+        indicators['atr'] = self.calculate_atr(data, 14)
+
+        # 2. RSI (Momentum Pillar)
+        indicators['rsi'] = self.calculate_rsi(close, params.get('rsi_period', 14))
+        indicators['rsi_fast'] = self.calculate_rsi(close, 9)
+        indicators['rsi_slow'] = self.calculate_rsi(close, 25)
+
+        # 3. Bollinger Bands (Volatility Pillar)
+        bb_data = self.calculate_bollinger_bands(
+            close, 
+            params.get('bb_period', 20), 
+            params.get('bb_std', 2.0)
+        )
+        indicators = indicators.join(bb_data)
+
+        # 4. Swing Trend & Momentum Base
+        indicators['swing_trend'] = self.calculate_swing_trend(data)
+        indicators['price_momentum'] = self.calculate_price_momentum(close)
+
+        # Adaptive Acceleration: If Holy Trinity preset is active, skip non-essential indicators
+        if preset == 'holy_trinity':
+            zero_series = pd.Series(0.0, index=data.index)
+            indicators['macd'] = zero_series
+            indicators['macd_signal'] = zero_series
+            indicators['macd_histogram'] = zero_series
+            indicators['stoch_k'] = zero_series
+            indicators['stoch_d'] = zero_series
+            indicators['williams_r'] = zero_series
+            indicators['cci'] = zero_series
+            indicators['volume_sma'] = zero_series
+            indicators['volume_ratio'] = zero_series
+            indicators['momentum'] = zero_series
+            indicators['roc'] = zero_series
+            indicators['vwap'] = close
+            indicators['trend_strength'] = zero_series
+            indicators['support_resistance'] = zero_series
+            indicators['breakout_signal'] = zero_series
+            indicators['volatility_ratio'] = pd.Series(1.0, index=data.index)
+            indicators['volume_trend'] = zero_series
+            return indicators
+
         # MACD with standard swing settings
         macd_data = self.calculate_macd(
-            data['Close'], 
+            close, 
             params.get('macd_fast', 12), 
             params.get('macd_slow', 26), 
             params.get('macd_signal', 9)
         )
         indicators = indicators.join(macd_data)
-        
-        # Bollinger Bands with standard settings
-        bb_data = self.calculate_bollinger_bands(
-            data['Close'], 
-            params.get('bb_period', 20), 
-            params.get('bb_std', 2.0)
-        )
-        indicators = indicators.join(bb_data)
-        
-        # Moving Averages for swing trend analysis
-        indicators['ema_9'] = self.calculate_ema(data['Close'], 9)
-        indicators['ema_21'] = self.calculate_ema(data['Close'], 21)
-        indicators['ema_50'] = self.calculate_ema(data['Close'], 50)
-        indicators['ema_200'] = self.calculate_ema(data['Close'], 200)  # Long-term trend
-        indicators['sma_50'] = self.calculate_sma(data['Close'], 50)
-        
+
         # Stochastic with standard swing settings
         stoch_data = self.calculate_stochastic(data, 14, 3, 3)
         indicators = indicators.join(stoch_data)
         
-        # Williams %R for swing momentum
+        # Williams %R, CCI, Volume
         indicators['williams_r'] = self.calculate_williams_r(data, 14)
-        
-        # CCI for swing reversals
         indicators['cci'] = self.calculate_cci(data, 20)
-        
-        # Average True Range for swing volatility
-        indicators['atr'] = self.calculate_atr(data, 14)
-        
-        # Volume indicators for swing analysis
-        indicators['volume_sma'] = self.calculate_sma(data['Volume'], 50)  # Longer average
-        indicators['volume_ratio'] = data['Volume'] / indicators['volume_sma']
-        
-        # Price momentum for swing trading
-        indicators['momentum'] = self.calculate_momentum(data['Close'], 10)  # Medium-term
-        indicators['roc'] = self.calculate_roc(data['Close'], 12)  # Rate of change
-        
-        # VWAP for swing levels
+        indicators['volume_sma'] = self.calculate_sma(vol, 50)
+        indicators['volume_ratio'] = vol / indicators['volume_sma'].replace(0, 1)
+        indicators['momentum'] = self.calculate_momentum(close, 10)
+        indicators['roc'] = self.calculate_roc(close, 12)
         indicators['vwap'] = self.calculate_vwap(data)
-        
-        # Swing trading specific indicators
-        indicators['swing_trend'] = self.calculate_swing_trend(data)
-        indicators['price_momentum'] = self.calculate_price_momentum(data['Close'])
         
         # Advanced swing trading enhancements
         try:
@@ -76,13 +92,13 @@ class TechnicalIndicators:
             indicators['breakout_signal'] = self.calculate_breakout_signal(data)
             indicators['volatility_ratio'] = self.calculate_volatility_ratio(data)
             indicators['volume_trend'] = self.calculate_volume_trend(data)
-        except:
-            # Fallback values if advanced indicators fail
-            indicators['trend_strength'] = pd.Series(0, index=data.index)
-            indicators['support_resistance'] = pd.Series(0, index=data.index)
-            indicators['breakout_signal'] = pd.Series(0, index=data.index)
-            indicators['volatility_ratio'] = pd.Series(1, index=data.index)
-            indicators['volume_trend'] = pd.Series(0, index=data.index)
+        except Exception:
+            zero_series = pd.Series(0.0, index=data.index)
+            indicators['trend_strength'] = zero_series
+            indicators['support_resistance'] = zero_series
+            indicators['breakout_signal'] = zero_series
+            indicators['volatility_ratio'] = pd.Series(1.0, index=data.index)
+            indicators['volume_trend'] = zero_series
         
         return indicators
     

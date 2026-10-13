@@ -2,8 +2,12 @@ import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
 from typing import Protocol, runtime_checkable
-import streamlit as st
+import logging
+from .cache_utils import ttl_cache
+
+logger = logging.getLogger(__name__)
 import requests
+from specs.schemas.market_data_spec import validate_ohlcv
 
 
 @runtime_checkable
@@ -19,17 +23,35 @@ class MarketDataSource(Protocol):
     def get_historical_data(self, symbol: str, start_date: datetime, end_date: datetime,
                              interval: str = "1d") -> pd.DataFrame: ...
     def get_real_time_price(self, symbol: str) -> dict: ...
+def is_indian_stock(symbol: str) -> bool:
+    s = symbol.strip().upper()
+    return s.endswith('.NS') or s.endswith('.BO') or s.startswith(('^NSE', '^BSE'))
+
+
+def to_yf_symbol(symbol: str, is_stock: bool = False) -> tuple[str, bool]:
+    """Returns (yahoo_finance_symbol, is_inr_native).
+    Indian stocks are quoted natively in INR on Yahoo Finance (.NS / .BO).
+    Crypto pairs are quoted in USD on Yahoo Finance and converted to INR.
+    """
+    s = symbol.strip().upper()
+    if is_stock or is_indian_stock(s):
+        if not (s.endswith('.NS') or s.endswith('.BO') or s.startswith('^')):
+            s = f"{s}.NS"
+        return s, True
+    if not s.endswith('-USD'):
+        s = f"{s}-USD"
+    return s, False
 
 
 class DataFetcher:
-    """Fetches cryptocurrency market data via Yahoo Finance (yfinance) with INR conversion.
+    """Fetches cryptocurrency & Indian stock market data via Yahoo Finance (yfinance) with INR conversion.
     Implements the MarketDataSource shape above."""
     
     def __init__(self):
         self.cache_duration = 60  # 1 minute cache for more real-time data
         self.usd_to_inr_rate = None
     
-    @st.cache_data(ttl=300)
+    @ttl_cache(ttl=300)
     def get_usd_to_inr_rate(_self) -> float:
         """Get current USD to INR exchange rate"""
         try:
@@ -44,52 +66,68 @@ class DataFetcher:
         except Exception:
             return 83.0  # Fallback rate
     
-    @st.cache_data(ttl=60)
-    def get_data(_self, symbol: str, period: str = "1mo", interval: str = "1h") -> pd.DataFrame:
-        """Fetch cryptocurrency data with INR conversion"""
+    @ttl_cache(ttl=60)
+    def get_data(_self, symbol: str, period: str = "1mo", interval: str = "1h", timeframe: str = None) -> pd.DataFrame:
+        """Fetch cryptocurrency or Indian stock data with INR conversion"""
         try:
-            # Ensure crypto symbol format for Yahoo Finance
-            if not symbol.endswith('-USD'):
-                symbol = f"{symbol}-USD"
-            
-            ticker = yf.Ticker(symbol)
-            data = ticker.history(period=period, interval=interval)
+            target_interval = timeframe if timeframe is not None else interval
+            yf_symbol, is_inr_native = to_yf_symbol(symbol)
+            ticker = yf.Ticker(yf_symbol)
+            # Support 3m by querying 1m data and resampling
+            actual_interval = '1m' if target_interval == '3m' else target_interval
+            actual_period = '5d' if (target_interval == '3m' and period not in ['1d', '5d', '7d']) else period
+            data = ticker.history(period=actual_period, interval=actual_interval)
             
             if data.empty:
                 return pd.DataFrame()
             
             # Clean data
             data = data.dropna()
+
+            if interval == '3m' and not data.empty:
+                data = data.resample('3min').agg({
+                    'Open': 'first',
+                    'High': 'max',
+                    'Low': 'min',
+                    'Close': 'last',
+                    'Volume': 'sum'
+                }).dropna()
             
+            # Convert timestamp index to Indian Standard Time (IST)
+            if hasattr(data.index, 'tz') and data.index.tz is not None:
+                data.index = data.index.tz_convert('Asia/Kolkata')
+            elif hasattr(data.index, 'tz_localize'):
+                data.index = data.index.tz_localize('UTC').tz_convert('Asia/Kolkata')
+
             # Ensure we have the required columns
             required_columns = ['Open', 'High', 'Low', 'Close', 'Volume']
             missing_columns = [col for col in required_columns if col not in data.columns]
             
             if missing_columns:
-                st.error(f"Missing required columns: {missing_columns}")
+                logger.error(f"Missing required columns: {missing_columns}")
                 return pd.DataFrame()
             
-            # Convert USD prices to INR
-            usd_to_inr = _self.get_usd_to_inr_rate()
-            price_columns = ['Open', 'High', 'Low', 'Close']
-            for col in price_columns:
-                data[col] = data[col] * usd_to_inr
+            # Convert USD prices to INR for crypto; stocks are already in INR
+            if not is_inr_native:
+                usd_to_inr = _self.get_usd_to_inr_rate()
+                price_columns = ['Open', 'High', 'Low', 'Close']
+                for col in price_columns:
+                    data[col] = data[col] * usd_to_inr
             
+            # Spec-Driven Contract Validation (OHLCV Market Data Invariants)
+            data = validate_ohlcv(data, strict=False)
             return data
             
         except Exception as e:
-            st.error(f"Error fetching data for {symbol}: {str(e)}")
+            logger.error(f"Error fetching data for {symbol}: {str(e)}")
             return pd.DataFrame()
     
-    @st.cache_data(ttl=300)
+    @ttl_cache(ttl=300)
     def get_historical_data(_self, symbol: str, start_date: datetime, end_date: datetime, interval: str = "1d") -> pd.DataFrame:
-        """Fetch historical cryptocurrency data for backtesting with INR conversion"""
+        """Fetch historical cryptocurrency or Indian stock data for backtesting with INR conversion"""
         try:
-            # Ensure crypto symbol format
-            if not symbol.endswith('-USD'):
-                symbol = f"{symbol}-USD"
-                
-            ticker = yf.Ticker(symbol)
+            yf_symbol, is_inr_native = to_yf_symbol(symbol)
+            ticker = yf.Ticker(yf_symbol)
             data = ticker.history(start=start_date, end=end_date, interval=interval)
             
             if data.empty:
@@ -97,66 +135,109 @@ class DataFetcher:
             
             # Clean data
             data = data.dropna()
+
+            # Convert timestamp index to Indian Standard Time (IST)
+            if hasattr(data.index, 'tz') and data.index.tz is not None:
+                data.index = data.index.tz_convert('Asia/Kolkata')
+            elif hasattr(data.index, 'tz_localize'):
+                data.index = data.index.tz_localize('UTC').tz_convert('Asia/Kolkata')
             
-            # Convert USD prices to INR
-            usd_to_inr = _self.get_usd_to_inr_rate()
-            price_columns = ['Open', 'High', 'Low', 'Close']
-            for col in price_columns:
-                if col in data.columns:
-                    data[col] = data[col] * usd_to_inr
+            # Convert USD prices to INR for crypto; stocks are already in INR
+            if not is_inr_native:
+                usd_to_inr = _self.get_usd_to_inr_rate()
+                price_columns = ['Open', 'High', 'Low', 'Close']
+                for col in price_columns:
+                    if col in data.columns:
+                        data[col] = data[col] * usd_to_inr
             
+            # Spec-Driven Contract Validation (OHLCV Market Data Invariants)
+            data = validate_ohlcv(data, strict=False)
             return data
             
         except Exception as e:
-            st.error(f"Error fetching historical data for {symbol}: {str(e)}")
+            logger.error(f"Error fetching historical data for {symbol}: {str(e)}")
             return pd.DataFrame()
     
-    @st.cache_data(ttl=30)
+    @ttl_cache(ttl=30)
     def get_real_time_price(_self, symbol: str) -> dict:
-        """Get real-time cryptocurrency price data in INR"""
+        """Get real-time cryptocurrency or Indian stock price data in INR"""
         try:
-            # Ensure crypto symbol format
-            if not symbol.endswith('-USD'):
-                symbol = f"{symbol}-USD"
-                
-            ticker = yf.Ticker(symbol)
+            yf_symbol, is_inr_native = to_yf_symbol(symbol)
+            ticker = yf.Ticker(yf_symbol)
             info = ticker.info
             
-            # Get USD to INR rate
-            usd_to_inr = _self.get_usd_to_inr_rate()
-            
-            price_usd = info.get('currentPrice', info.get('regularMarketPrice', 0))
-            change_usd = info.get('regularMarketChange', 0)
+            rate = 1.0 if is_inr_native else _self.get_usd_to_inr_rate()
+            price_val = info.get('currentPrice', info.get('regularMarketPrice', 0))
+            change_val = info.get('regularMarketChange', 0)
+            display_sym = symbol.replace('-USD', '')
             
             return {
-                'symbol': symbol.replace('-USD', ''),
-                'price': price_usd * usd_to_inr,
-                'change': change_usd * usd_to_inr,
+                'symbol': display_sym,
+                'price': price_val * rate,
+                'change': change_val * rate,
                 'change_percent': info.get('regularMarketChangePercent', 0),
                 'volume': info.get('regularMarketVolume', 0),
-                'market_cap': info.get('marketCap', 0) * usd_to_inr if info.get('marketCap') else 0,
+                'market_cap': (info.get('marketCap', 0) * rate) if info.get('marketCap') else 0,
                 'currency': 'INR'
             }
             
         except Exception as e:
-            st.error(f"Error fetching real-time data for {symbol}: {str(e)}")
+            logger.error(f"Error fetching real-time data for {symbol}: {str(e)}")
             return {}
     
-    @st.cache_data(ttl=300)
-    def validate_crypto_symbol(_self, symbol: str) -> bool:
-        """Validate if a crypto symbol exists and has data on Yahoo Finance"""
+    @ttl_cache(ttl=300)
+    def validate_symbol(_self, symbol: str) -> bool:
+        """Validate if a crypto or stock symbol exists and has data on Yahoo Finance"""
         try:
-            if not symbol.endswith('-USD'):
-                symbol = f"{symbol}-USD"
-
-            ticker = yf.Ticker(symbol)
+            yf_symbol, _ = to_yf_symbol(symbol)
+            ticker = yf.Ticker(yf_symbol)
             info = ticker.info
 
             return 'regularMarketPrice' in info or 'currentPrice' in info
 
         except Exception as e:
-            # yfinance raises an untyped mix of network/parsing errors here; we still want
-            # to fail closed (treat as invalid) but the message must be visible, not swallowed,
-            # so a rate-limit or outage doesn't look identical to "this symbol doesn't exist".
-            st.warning(f"Could not validate {symbol}: {str(e)}")
+            logger.warning(f"Could not validate {symbol}: {str(e)}")
             return False
+
+    validate_crypto_symbol = validate_symbol
+
+    @ttl_cache(ttl=600)
+    def get_asset_fundamentals(_self, symbol: str) -> dict:
+        """Fetch fundamental company/crypto research details from Yahoo Finance."""
+        try:
+            yf_symbol, is_inr_native = to_yf_symbol(symbol)
+            ticker = yf.Ticker(yf_symbol)
+            info = ticker.info or {}
+            rate = 1.0 if is_inr_native else _self.get_usd_to_inr_rate()
+
+            # Extract valuation and profile metrics
+            return {
+                'name': info.get('longName', info.get('shortName', symbol)),
+                'summary': info.get('longBusinessSummary', 'No company description available.'),
+                'sector': info.get('sector', 'N/A'),
+                'industry': info.get('industry', 'N/A'),
+                'market_cap': (info.get('marketCap', 0) * rate) if info.get('marketCap') else 0,
+                'pe_trailing': info.get('trailingPE'),
+                'pe_forward': info.get('forwardPE'),
+                'high_52w': (info.get('fiftyTwoWeekHigh', 0) * rate) if info.get('fiftyTwoWeekHigh') else 0,
+                'low_52w': (info.get('fiftyTwoWeekLow', 0) * rate) if info.get('fiftyTwoWeekLow') else 0,
+                'dividend_yield': (info.get('dividendYield', 0) * 100) if info.get('dividendYield') else 0,
+                'target_price': (info.get('targetMeanPrice', 0) * rate) if info.get('targetMeanPrice') else None,
+                'recommendation': info.get('recommendationKey', 'N/A').replace('_', ' ').upper(),
+                'analyst_count': info.get('numberOfAnalystOpinions', 0),
+                'beta': info.get('beta'),
+                'currency': 'INR',
+                'is_stock': is_inr_native,
+            }
+        except Exception as e:
+            return {
+                'name': symbol,
+                'summary': f'Fundamental details unavailable: {str(e)}',
+                'sector': 'N/A',
+                'industry': 'N/A',
+                'market_cap': 0,
+                'pe_trailing': None,
+                'high_52w': 0,
+                'low_52w': 0,
+                'is_stock': False,
+            }
