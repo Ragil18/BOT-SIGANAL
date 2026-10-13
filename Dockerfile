@@ -17,11 +17,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application files
 COPY . .
 
-# Expose port
 EXPOSE 8080
 
 # Healthcheck
-HEALTHCHECK CMD curl --fail http://localhost:8080/ || exit 1
+HEALTHCHECK --interval=30s --timeout=5s CMD curl --fail http://localhost:${PORT:-8080}/ || exit 1
 
-# Start FastAPI Uvicorn Server
-CMD ["uvicorn", "webapp.server:app", "--host", "0.0.0.0", "--port", "8080"]
+# Start FastAPI Uvicorn Server with dynamic port support
+CMD ["sh", "-c", "uvicorn webapp.server:app --host 0.0.0.0 --port ${PORT:-8080}"]
+
