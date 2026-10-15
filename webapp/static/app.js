@@ -4,6 +4,7 @@
 
 class TradeSignalTerminal {
     constructor() {
+        window.terminal = this;
         this.activeSymbol = 'BTC-USD';
         this.activeTimeframe = '1h';
         this.sensitivity = 0.3;
@@ -48,19 +49,21 @@ class TradeSignalTerminal {
         this.btCachedData = null;
 
         this.initDOM();
-        this.paper = new PaperTradingEngine(this);
-        this.autoPilot = new QuantAutoPilot(this, this.paper);
-        this.wsManager = new BinanceWebSocketManager(this);
-        this.initTradingViewChart();
-        this.bindEvents();
+        try { this.paper = new PaperTradingEngine(this); } catch (e) { console.error("PaperTradingEngine init error:", e); }
+        try { this.autoPilot = new QuantAutoPilot(this, this.paper); } catch (e) { console.error("QuantAutoPilot init error:", e); }
+        try { this.wsManager = new BinanceWebSocketManager(this); } catch (e) { console.error("BinanceWebSocketManager init error:", e); }
+        try { this.initTradingViewChart(); } catch (e) { console.error("TradingViewChart init error:", e); }
+        try { this.bindEvents(); } catch (e) { console.error("bindEvents error:", e); }
         
         // Initial data bootstrap
-        this.startISTClock();
-        this.startBarCountdown();
+        try { this.startISTClock(); } catch (e) { console.error(e); }
+        try { this.startBarCountdown(); } catch (e) { console.error(e); }
         this.fetchTicker();
         this.loadMarketData();
         this.loadConfluence();
-        this.wsManager.connect();
+        if (this.wsManager) {
+            try { this.wsManager.connect(); } catch (e) { console.error(e); }
+        }
         
         // Auto-refresh poll every 10 seconds for real-time live price ticks
         this.autoRefreshTimer = setInterval(() => {
@@ -1783,8 +1786,260 @@ class TradeSignalTerminal {
     }
 
     // =========================================================================
-    // Institutional Paper Trading Engine & Terminal Controller
+    // Institutional Command Palette (Ctrl+K or /)
     // =========================================================================
+
+    initCommandPalette() {
+        if (!this.dom.btnOpenCmd || !this.dom.cmdBackdrop) return;
+
+        const openCmd = () => {
+            this.dom.cmdBackdrop.classList.remove('hidden');
+            if (this.dom.cmdInput) {
+                this.dom.cmdInput.value = '';
+                this.dom.cmdInput.focus();
+            }
+            this.renderCommandPalette('');
+        };
+
+        const closeCmd = () => {
+            this.dom.cmdBackdrop.classList.add('hidden');
+        };
+
+        this.dom.btnOpenCmd.addEventListener('click', openCmd);
+        if (this.dom.cmdCloseEsc) {
+            this.dom.cmdCloseEsc.addEventListener('click', closeCmd);
+        }
+
+        this.dom.cmdBackdrop.addEventListener('click', (e) => {
+            if (e.target === this.dom.cmdBackdrop) closeCmd();
+        });
+
+        // Global hotkey listener: Ctrl+K, Cmd+K, or /
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+                e.preventDefault();
+                this.dom.cmdBackdrop.classList.contains('hidden') ? openCmd() : closeCmd();
+            } else if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+                e.preventDefault();
+                openCmd();
+            } else if (e.key === 'Escape' && !this.dom.cmdBackdrop.classList.contains('hidden')) {
+                closeCmd();
+            }
+        });
+
+        if (this.dom.cmdInput) {
+            this.dom.cmdInput.addEventListener('input', (e) => {
+                this.renderCommandPalette(e.target.value);
+            });
+        }
+    }
+
+    getCommandList() {
+        return [
+            // Symbols
+            { category: 'SYMBOL', text: 'Bitcoin (BTC-USD)', action: 'symbol', param: 'BTC-USD' },
+            { category: 'SYMBOL', text: 'Ethereum (ETH-USD)', action: 'symbol', param: 'ETH-USD' },
+            { category: 'SYMBOL', text: 'Solana (SOL-USD)', action: 'symbol', param: 'SOL-USD' },
+            { category: 'SYMBOL', text: 'XRP (XRP-USD)', action: 'symbol', param: 'XRP-USD' },
+            { category: 'SYMBOL', text: 'Dogecoin (DOGE-USD)', action: 'symbol', param: 'DOGE-USD' },
+            { category: 'SYMBOL', text: 'Cardano (ADA-USD)', action: 'symbol', param: 'ADA-USD' },
+            { category: 'SYMBOL', text: 'BNB (BNB-USD)', action: 'symbol', param: 'BNB-USD' },
+            { category: 'EQUITY', text: 'Reliance Industries (RELIANCE.NS)', action: 'symbol', param: 'RELIANCE.NS' },
+            { category: 'EQUITY', text: 'Tata Consultancy Services (TCS.NS)', action: 'symbol', param: 'TCS.NS' },
+            { category: 'EQUITY', text: 'Infosys (INFY.NS)', action: 'symbol', param: 'INFY.NS' },
+            // Timeframes
+            { category: 'TIMEFRAME', text: 'Switch to 1-Minute (1M)', action: 'tf', param: '1m' },
+            { category: 'TIMEFRAME', text: 'Switch to 5-Minute (5M)', action: 'tf', param: '5m' },
+            { category: 'TIMEFRAME', text: 'Switch to 15-Minute (15M)', action: 'tf', param: '15m' },
+            { category: 'TIMEFRAME', text: 'Switch to 1-Hour (1H)', action: 'tf', param: '1h' },
+            { category: 'TIMEFRAME', text: 'Switch to 4-Hour (4H)', action: 'tf', param: '4h' },
+            { category: 'TIMEFRAME', text: 'Switch to 1-Day (1D)', action: 'tf', param: '1d' },
+            // AI / ML Models
+            { category: 'AI MODEL', text: 'Activate Quant ML (Gradient Boosted Ensemble)', action: 'model', param: 'ml' },
+            { category: 'AI MODEL', text: 'Activate Deep Learning (PyTorch LSTM)', action: 'model', param: 'dl' },
+            { category: 'AI MODEL', text: 'Run Fresh AI / ML Inference (Current Asset)', action: 'run_infer', param: null },
+            // Forecast Horizons
+            { category: 'HORIZON', text: 'Set ML Horizon: 1 Bar Forward', action: 'horizon', param: 1 },
+            { category: 'HORIZON', text: 'Set ML Horizon: 3 Bars Forward', action: 'horizon', param: 3 },
+            { category: 'HORIZON', text: 'Set ML Horizon: 5 Bars Forward', action: 'horizon', param: 5 },
+            { category: 'HORIZON', text: 'Set ML Horizon: 10 Bars Forward', action: 'horizon', param: 10 },
+            // Strategies
+            { category: 'STRATEGY', text: 'Preset: Holy Trinity (EMA + RSI + BB)', action: 'preset', param: 'holy_trinity' },
+            { category: 'STRATEGY', text: 'Preset: Crypto Scalp (1M-5M Momentum)', action: 'preset', param: 'crypto_scalp' },
+            { category: 'STRATEGY', text: 'Preset: Stock Swing (1H-1D Conviction)', action: 'preset', param: 'stock_swing' },
+            { category: 'STRATEGY', text: 'Preset: Full Quant (All 10 Indicators)', action: 'preset', param: 'balanced' },
+            // Overlays
+            { category: 'OVERLAY', text: 'Toggle Level-2 Order Book (DOM Ladder)', action: 'toggle_dom', param: null },
+            { category: 'OVERLAY', text: 'Toggle On-Chart TP / SL Price Lines', action: 'toggle_tpsl', param: null },
+            { category: 'OVERLAY', text: 'Toggle On-Chart AI Predicted Target Price Line', action: 'toggle_ml_target', param: null },
+            { category: 'OVERLAY', text: 'Toggle EMA Ribbons (20, 50, 200)', action: 'toggle_ema', param: null },
+            { category: 'OVERLAY', text: 'Toggle Bollinger Bands Volatility Envelope', action: 'toggle_bb', param: null },
+            { category: 'OVERLAY', text: 'Toggle On-Chart RSI Momentum Ribbon', action: 'toggle_rsi', param: null },
+            { category: 'VIEW', text: 'Toggle Fullscreen Chart / Intel Sidebar', action: 'toggle_sidebar', param: null },
+            // Paper Trading Commands
+            { category: 'PAPER TRADE', text: 'Paper: Place Market Long (Current Symbol)', action: 'paper_long', param: null },
+            { category: 'PAPER TRADE', text: 'Paper: Place Market Short (Current Symbol)', action: 'paper_short', param: null },
+            { category: 'PAPER TRADE', text: 'Paper: Close All Open Positions', action: 'paper_close_all', param: null },
+            { category: 'PAPER TRADE', text: 'Paper: Reset Virtual Balance ($100,000)', action: 'paper_reset', param: null },
+            { category: 'PAPER TRADE', text: 'Paper: Export Trade Journal to CSV', action: 'paper_export', param: null },
+            { category: 'PAPER TRADE', text: 'Paper: Focus Positions Tab', action: 'paper_tab', param: 'positions' },
+            { category: 'PAPER TRADE', text: 'Paper: Focus Open Orders Tab', action: 'paper_tab', param: 'orders' },
+            { category: 'PAPER TRADE', text: 'Paper: Focus Trade History Tab', action: 'paper_tab', param: 'history' },
+            { category: 'PAPER TRADE', text: 'Paper: Focus Performance Analytics', action: 'paper_tab', param: 'analytics' },
+            // Quant Auto-Pilot Bot Commands
+            { category: 'BOT', text: 'Auto-Pilot: Toggle Autonomous Trading (ON/OFF)', action: 'ap_toggle', param: null },
+            { category: 'BOT', text: 'Auto-Pilot: Set Conviction Threshold to 70%', action: 'ap_thresh', param: 0.70 },
+            { category: 'BOT', text: 'Auto-Pilot: Set Conviction Threshold to 80%', action: 'ap_thresh', param: 0.80 },
+            { category: 'BOT', text: 'Auto-Pilot: Emergency Stop (Disarm & Close All)', action: 'ap_kill', param: null },
+            // News & Sentiment Commands
+            { category: 'NEWS', text: 'News: Focus News & Sentiment Intelligence Hub', action: 'paper_tab', param: 'news' },
+            // Backtest Studio Commands
+            { category: 'BACKTEST', text: 'Backtest: Run Strategy Simulation (Current Asset)', action: 'run_backtest', param: null },
+            { category: 'BACKTEST', text: 'Backtest: Focus Strategy Backtest Studio Tab', action: 'paper_tab', param: 'backtest' },
+            // Market Regime Commands
+            { category: 'REGIME', text: 'Market Regime: Inspect Macro Structure & Guardrails', action: 'inspect_regime', param: null },
+            // Primary Pages Navigation
+            { category: 'PAGE', text: 'Go to Trading Terminal (Charts & Order Execution)', action: 'workspace_mode', param: 'terminal' },
+            { category: 'PAGE', text: 'Go to Quant & AI Intel (Signals, Deep LSTM & Bot)', action: 'workspace_mode', param: 'quant' },
+            { category: 'PAGE', text: 'Go to Research Studio (Backtester, News & Analytics)', action: 'workspace_mode', param: 'studio' },
+            // Workspace Mode Commands
+            { category: 'VIEW', text: 'Workspace: Terminal View (Chart + L2 DOM + Execution)', action: 'workspace_mode', param: 'terminal' },
+            { category: 'VIEW', text: 'Workspace: Quant View (AI ML Forecast + Macro Regime)', action: 'workspace_mode', param: 'quant' },
+            { category: 'VIEW', text: 'Workspace: Studio View (Strategy Backtester & News Hub)', action: 'workspace_mode', param: 'studio' }
+        ];
+    }
+
+    renderCommandPalette(query) {
+        if (!this.dom.cmdResultsList) return;
+        const q = (query || '').trim().toLowerCase();
+        const allCmds = this.getCommandList();
+        const filtered = q ? allCmds.filter(c => c.text.toLowerCase().includes(q) || c.category.toLowerCase().includes(q)) : allCmds;
+
+        let html = '';
+        filtered.slice(0, 15).forEach(cmd => {
+            html += `
+                <div class="cmd-item" onclick="terminal.executeCommand('${cmd.action}', '${cmd.param}')">
+                    <div class="cmd-item-left">
+                        <span class="cmd-category-tag">${cmd.category}</span>
+                        <span>${cmd.text}</span>
+                    </div>
+                    <span class="cmd-kbd">↵ Enter</span>
+                </div>
+            `;
+        });
+        if (filtered.length === 0) {
+            html = `<div style="padding:16px; text-align:center; color:#536079; font-size:12px;">No matching command found for "${query}".</div>`;
+        }
+        this.dom.cmdResultsList.innerHTML = html;
+    }
+
+    executeCommand(action, param) {
+        this.dom.cmdBackdrop.classList.add('hidden');
+        if (action === 'symbol') {
+            this.selectSymbol(param);
+        } else if (action === 'tf') {
+            this.setTimeframe(param);
+            this.loadMarketData(true);
+        } else if (action === 'model') {
+            this.activeModel = param;
+            if (this.dom.modelSwitch) {
+                this.dom.modelSwitch.querySelectorAll('.model-toggle-btn').forEach(b => {
+                    b.classList.toggle('active', b.dataset.model === param);
+                });
+            }
+            this.loadMarketData(false);
+        } else if (action === 'horizon') {
+            this.predictionHorizon = parseInt(param, 10);
+            if (this.dom.horizonChips) {
+                this.dom.horizonChips.querySelectorAll('.horizon-chip').forEach(c => {
+                    c.classList.toggle('active', parseInt(c.dataset.horizon, 10) === this.predictionHorizon);
+                });
+            }
+            this.loadMarketData(false);
+        } else if (action === 'preset') {
+            this.activePreset = param;
+            if (this.dom.headerPresetSelect) {
+                this.dom.headerPresetSelect.value = param;
+            }
+            if (this.dom.presetChips) {
+                this.dom.presetChips.querySelectorAll('.preset-chip').forEach(c => {
+                    c.classList.toggle('active', c.dataset.preset === param);
+                });
+            }
+            this.loadMarketData(true);
+        } else if (action === 'toggle_tpsl') {
+            this.showTpSl = !this.showTpSl;
+            if (this.dom.btnToggleTpSl) this.dom.btnToggleTpSl.classList.toggle('active', this.showTpSl);
+            this.updateTpSlPriceLines(this.cachedTargets);
+        } else if (action === 'toggle_ml_target') {
+            this.showMlTarget = !this.showMlTarget;
+            if (this.dom.btnToggleMlTarget) this.dom.btnToggleMlTarget.classList.toggle('active', this.showMlTarget);
+            this.updateMlTargetPriceLine(this.cachedMlPrediction, this.latestPrice);
+        } else if (action === 'run_infer') {
+            this.runQuickInference();
+        } else if (action === 'toggle_ema') {
+            this.showEma = !this.showEma;
+            if (this.dom.btnToggleEma) this.dom.btnToggleEma.classList.toggle('active', this.showEma);
+            if (this.ema20Series) this.ema20Series.applyOptions({ visible: this.showEma });
+            if (this.ema50Series) this.ema50Series.applyOptions({ visible: this.showEma });
+            if (this.ema200Series) this.ema200Series.applyOptions({ visible: this.showEma });
+            if (this.showEma && this.cachedCandles) this.updateOverlaySeries(this.cachedCandles);
+        } else if (action === 'toggle_bb') {
+            this.showBb = !this.showBb;
+            if (this.dom.btnToggleBb) this.dom.btnToggleBb.classList.toggle('active', this.showBb);
+            if (this.bbUpperSeries) this.bbUpperSeries.applyOptions({ visible: this.showBb });
+            if (this.bbLowerSeries) this.bbLowerSeries.applyOptions({ visible: this.showBb });
+            if (this.showBb && this.cachedCandles) this.updateOverlaySeries(this.cachedCandles);
+        } else if (action === 'toggle_dom') {
+            if (this.wsManager) this.wsManager.toggleDom();
+        } else if (action === 'toggle_rsi') {
+            this.showRsi = !this.showRsi;
+            if (this.dom.btnToggleRsi) this.dom.btnToggleRsi.classList.toggle('active', this.showRsi);
+            this.updateRsiIndicator(this.cachedCandles);
+        } else if (action === 'toggle_sidebar') {
+            this.toggleSidebar();
+        } else if (action === 'paper_long') {
+            if (this.paper) {
+                this.paper.selectedSide = 'LONG';
+                this.paper.updateSideButtons();
+                this.paper.executeOrder();
+            }
+        } else if (action === 'paper_short') {
+            if (this.paper) {
+                this.paper.selectedSide = 'SHORT';
+                this.paper.updateSideButtons();
+                this.paper.executeOrder();
+            }
+        } else if (action === 'paper_close_all') {
+            if (this.paper) this.paper.closeAllPositions();
+        } else if (action === 'paper_reset') {
+            if (this.paper) this.paper.resetAccount();
+        } else if (action === 'paper_export') {
+            if (this.paper) this.paper.exportCSV();
+        } else if (action === 'paper_tab') {
+            if (this.paper) this.paper.switchTab(param);
+        } else if (action === 'ap_toggle') {
+            if (this.autoPilot) this.autoPilot.setEnabled(!this.autoPilot.enabled);
+        } else if (action === 'ap_thresh') {
+            if (this.autoPilot) {
+                this.autoPilot.minConviction = param;
+                this.autoPilot.setEnabled(true);
+            }
+        } else if (action === 'ap_kill') {
+            if (this.autoPilot) this.autoPilot.emergencyStop();
+        } else if (action === 'run_backtest') {
+            if (this.paper) this.paper.switchTab('backtest');
+            this.loadBacktestData(true);
+        } else if (action === 'inspect_regime') {
+            if (this.cachedRegime && this.paper) {
+                const r = this.cachedRegime;
+                const m = r.metrics || {};
+                this.paper.showToast('info', `📊 ${r.label}`, `${r.description} (ADX: ${m.adx || 'N/A'}, ATR Exp: ${m.atr_expansion || 'N/A'}x). Strategy: ${r.strategy_bias}`);
+            }
+        } else if (action === 'workspace_mode') {
+            this.setWorkspaceMode(param);
+        }
+    }
 }
 
 class PaperTradingEngine {
@@ -2729,262 +2984,6 @@ class PaperTradingEngine {
             });
         }
     }
-
-    // =========================================================================
-    // Institutional Command Palette (Ctrl+K or /)
-    // =========================================================================
-
-    initCommandPalette() {
-        if (!this.dom.btnOpenCmd || !this.dom.cmdBackdrop) return;
-
-        const openCmd = () => {
-            this.dom.cmdBackdrop.classList.remove('hidden');
-            if (this.dom.cmdInput) {
-                this.dom.cmdInput.value = '';
-                this.dom.cmdInput.focus();
-            }
-            this.renderCommandPalette('');
-        };
-
-        const closeCmd = () => {
-            this.dom.cmdBackdrop.classList.add('hidden');
-        };
-
-        this.dom.btnOpenCmd.addEventListener('click', openCmd);
-        if (this.dom.cmdCloseEsc) {
-            this.dom.cmdCloseEsc.addEventListener('click', closeCmd);
-        }
-
-        this.dom.cmdBackdrop.addEventListener('click', (e) => {
-            if (e.target === this.dom.cmdBackdrop) closeCmd();
-        });
-
-        // Global hotkey listener: Ctrl+K, Cmd+K, or /
-        document.addEventListener('keydown', (e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
-                e.preventDefault();
-                this.dom.cmdBackdrop.classList.contains('hidden') ? openCmd() : closeCmd();
-            } else if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
-                e.preventDefault();
-                openCmd();
-            } else if (e.key === 'Escape' && !this.dom.cmdBackdrop.classList.contains('hidden')) {
-                closeCmd();
-            }
-        });
-
-        if (this.dom.cmdInput) {
-            this.dom.cmdInput.addEventListener('input', (e) => {
-                this.renderCommandPalette(e.target.value);
-            });
-        }
-    }
-
-    getCommandList() {
-        return [
-            // Symbols
-            { category: 'SYMBOL', text: 'Bitcoin (BTC-USD)', action: 'symbol', param: 'BTC-USD' },
-            { category: 'SYMBOL', text: 'Ethereum (ETH-USD)', action: 'symbol', param: 'ETH-USD' },
-            { category: 'SYMBOL', text: 'Solana (SOL-USD)', action: 'symbol', param: 'SOL-USD' },
-            { category: 'SYMBOL', text: 'XRP (XRP-USD)', action: 'symbol', param: 'XRP-USD' },
-            { category: 'SYMBOL', text: 'Dogecoin (DOGE-USD)', action: 'symbol', param: 'DOGE-USD' },
-            { category: 'SYMBOL', text: 'Cardano (ADA-USD)', action: 'symbol', param: 'ADA-USD' },
-            { category: 'SYMBOL', text: 'BNB (BNB-USD)', action: 'symbol', param: 'BNB-USD' },
-            { category: 'EQUITY', text: 'Reliance Industries (RELIANCE.NS)', action: 'symbol', param: 'RELIANCE.NS' },
-            { category: 'EQUITY', text: 'Tata Consultancy Services (TCS.NS)', action: 'symbol', param: 'TCS.NS' },
-            { category: 'EQUITY', text: 'Infosys (INFY.NS)', action: 'symbol', param: 'INFY.NS' },
-            // Timeframes
-            { category: 'TIMEFRAME', text: 'Switch to 1-Minute (1M)', action: 'tf', param: '1m' },
-            { category: 'TIMEFRAME', text: 'Switch to 5-Minute (5M)', action: 'tf', param: '5m' },
-            { category: 'TIMEFRAME', text: 'Switch to 15-Minute (15M)', action: 'tf', param: '15m' },
-            { category: 'TIMEFRAME', text: 'Switch to 1-Hour (1H)', action: 'tf', param: '1h' },
-            { category: 'TIMEFRAME', text: 'Switch to 4-Hour (4H)', action: 'tf', param: '4h' },
-            { category: 'TIMEFRAME', text: 'Switch to 1-Day (1D)', action: 'tf', param: '1d' },
-            // AI / ML Models
-            { category: 'AI MODEL', text: 'Activate Quant ML (Gradient Boosted Ensemble)', action: 'model', param: 'ml' },
-            { category: 'AI MODEL', text: 'Activate Deep Learning (PyTorch LSTM)', action: 'model', param: 'dl' },
-            { category: 'AI MODEL', text: 'Run Fresh AI / ML Inference (Current Asset)', action: 'run_infer', param: null },
-            // Forecast Horizons
-            { category: 'HORIZON', text: 'Set ML Horizon: 1 Bar Forward', action: 'horizon', param: 1 },
-            { category: 'HORIZON', text: 'Set ML Horizon: 3 Bars Forward', action: 'horizon', param: 3 },
-            { category: 'HORIZON', text: 'Set ML Horizon: 5 Bars Forward', action: 'horizon', param: 5 },
-            { category: 'HORIZON', text: 'Set ML Horizon: 10 Bars Forward', action: 'horizon', param: 10 },
-            // Strategies
-            { category: 'STRATEGY', text: 'Preset: Holy Trinity (EMA + RSI + BB)', action: 'preset', param: 'holy_trinity' },
-            { category: 'STRATEGY', text: 'Preset: Crypto Scalp (1M-5M Momentum)', action: 'preset', param: 'crypto_scalp' },
-            { category: 'STRATEGY', text: 'Preset: Stock Swing (1H-1D Conviction)', action: 'preset', param: 'stock_swing' },
-            { category: 'STRATEGY', text: 'Preset: Full Quant (All 10 Indicators)', action: 'preset', param: 'balanced' },
-            // Overlays
-            { category: 'OVERLAY', text: 'Toggle Level-2 Order Book (DOM Ladder)', action: 'toggle_dom', param: null },
-            { category: 'OVERLAY', text: 'Toggle On-Chart TP / SL Price Lines', action: 'toggle_tpsl', param: null },
-            { category: 'OVERLAY', text: 'Toggle On-Chart AI Predicted Target Price Line', action: 'toggle_ml_target', param: null },
-            { category: 'OVERLAY', text: 'Toggle EMA Ribbons (20, 50, 200)', action: 'toggle_ema', param: null },
-            { category: 'OVERLAY', text: 'Toggle Bollinger Bands Volatility Envelope', action: 'toggle_bb', param: null },
-            { category: 'OVERLAY', text: 'Toggle On-Chart RSI Momentum Ribbon', action: 'toggle_rsi', param: null },
-            { category: 'VIEW', text: 'Toggle Fullscreen Chart / Intel Sidebar', action: 'toggle_sidebar', param: null },
-            // Paper Trading Commands
-            { category: 'PAPER TRADE', text: 'Paper: Place Market Long (Current Symbol)', action: 'paper_long', param: null },
-            { category: 'PAPER TRADE', text: 'Paper: Place Market Short (Current Symbol)', action: 'paper_short', param: null },
-            { category: 'PAPER TRADE', text: 'Paper: Close All Open Positions', action: 'paper_close_all', param: null },
-            { category: 'PAPER TRADE', text: 'Paper: Reset Virtual Balance ($100,000)', action: 'paper_reset', param: null },
-            { category: 'PAPER TRADE', text: 'Paper: Export Trade Journal to CSV', action: 'paper_export', param: null },
-            { category: 'PAPER TRADE', text: 'Paper: Focus Positions Tab', action: 'paper_tab', param: 'positions' },
-            { category: 'PAPER TRADE', text: 'Paper: Focus Open Orders Tab', action: 'paper_tab', param: 'orders' },
-            { category: 'PAPER TRADE', text: 'Paper: Focus Trade History Tab', action: 'paper_tab', param: 'history' },
-            { category: 'PAPER TRADE', text: 'Paper: Focus Performance Analytics', action: 'paper_tab', param: 'analytics' },
-            // Quant Auto-Pilot Bot Commands
-            { category: 'BOT', text: 'Auto-Pilot: Toggle Autonomous Trading (ON/OFF)', action: 'ap_toggle', param: null },
-            { category: 'BOT', text: 'Auto-Pilot: Set Conviction Threshold to 70%', action: 'ap_thresh', param: 0.70 },
-            { category: 'BOT', text: 'Auto-Pilot: Set Conviction Threshold to 80%', action: 'ap_thresh', param: 0.80 },
-            { category: 'BOT', text: 'Auto-Pilot: Emergency Stop (Disarm & Close All)', action: 'ap_kill', param: null },
-            // News & Sentiment Commands
-            { category: 'NEWS', text: 'News: Focus News & Sentiment Intelligence Hub', action: 'paper_tab', param: 'news' },
-            // Backtest Studio Commands
-            { category: 'BACKTEST', text: 'Backtest: Run Strategy Simulation (Current Asset)', action: 'run_backtest', param: null },
-            { category: 'BACKTEST', text: 'Backtest: Focus Strategy Backtest Studio Tab', action: 'paper_tab', param: 'backtest' },
-            // Market Regime Commands
-            { category: 'REGIME', text: 'Market Regime: Inspect Macro Structure & Guardrails', action: 'inspect_regime', param: null },
-            // Primary Pages Navigation
-            { category: 'PAGE', text: 'Go to Trading Terminal (Charts & Order Execution)', action: 'workspace_mode', param: 'terminal' },
-            { category: 'PAGE', text: 'Go to Quant & AI Intel (Signals, Deep LSTM & Bot)', action: 'workspace_mode', param: 'quant' },
-            { category: 'PAGE', text: 'Go to Research Studio (Backtester, News & Analytics)', action: 'workspace_mode', param: 'studio' },
-            // Workspace Mode Commands
-            { category: 'VIEW', text: 'Workspace: Terminal View (Chart + L2 DOM + Execution)', action: 'workspace_mode', param: 'terminal' },
-            { category: 'VIEW', text: 'Workspace: Quant View (AI ML Forecast + Macro Regime)', action: 'workspace_mode', param: 'quant' },
-            { category: 'VIEW', text: 'Workspace: Studio View (Strategy Backtester & News Hub)', action: 'workspace_mode', param: 'studio' }
-        ];
-    }
-
-    renderCommandPalette(query) {
-        if (!this.dom.cmdResultsList) return;
-        const q = (query || '').trim().toLowerCase();
-        const allCmds = this.getCommandList();
-        const filtered = q ? allCmds.filter(c => c.text.toLowerCase().includes(q) || c.category.toLowerCase().includes(q)) : allCmds;
-
-        let html = '';
-        filtered.slice(0, 15).forEach(cmd => {
-            html += `
-                <div class="cmd-item" onclick="terminal.executeCommand('${cmd.action}', '${cmd.param}')">
-                    <div class="cmd-item-left">
-                        <span class="cmd-category-tag">${cmd.category}</span>
-                        <span>${cmd.text}</span>
-                    </div>
-                    <span class="cmd-kbd">↵ Enter</span>
-                </div>
-            `;
-        });
-        if (filtered.length === 0) {
-            html = `<div style="padding:16px; text-align:center; color:#536079; font-size:12px;">No matching command found for "${query}".</div>`;
-        }
-        this.dom.cmdResultsList.innerHTML = html;
-    }
-
-    executeCommand(action, param) {
-        this.dom.cmdBackdrop.classList.add('hidden');
-        if (action === 'symbol') {
-            this.selectSymbol(param);
-        } else if (action === 'tf') {
-            this.setTimeframe(param);
-            this.loadMarketData(true);
-        } else if (action === 'model') {
-            this.activeModel = param;
-            if (this.dom.modelSwitch) {
-                this.dom.modelSwitch.querySelectorAll('.model-toggle-btn').forEach(b => {
-                    b.classList.toggle('active', b.dataset.model === param);
-                });
-            }
-            this.loadMarketData(false);
-        } else if (action === 'horizon') {
-            this.predictionHorizon = parseInt(param, 10);
-            if (this.dom.horizonChips) {
-                this.dom.horizonChips.querySelectorAll('.horizon-chip').forEach(c => {
-                    c.classList.toggle('active', parseInt(c.dataset.horizon, 10) === this.predictionHorizon);
-                });
-            }
-            this.loadMarketData(false);
-        } else if (action === 'preset') {
-            this.activePreset = param;
-            if (this.dom.headerPresetSelect) {
-                this.dom.headerPresetSelect.value = param;
-            }
-            if (this.dom.presetChips) {
-                this.dom.presetChips.querySelectorAll('.preset-chip').forEach(c => {
-                    c.classList.toggle('active', c.dataset.preset === param);
-                });
-            }
-            this.loadMarketData(true);
-        } else if (action === 'toggle_tpsl') {
-            this.showTpSl = !this.showTpSl;
-            if (this.dom.btnToggleTpSl) this.dom.btnToggleTpSl.classList.toggle('active', this.showTpSl);
-            this.updateTpSlPriceLines(this.cachedTargets);
-        } else if (action === 'toggle_ml_target') {
-            this.showMlTarget = !this.showMlTarget;
-            if (this.dom.btnToggleMlTarget) this.dom.btnToggleMlTarget.classList.toggle('active', this.showMlTarget);
-            this.updateMlTargetPriceLine(this.cachedMlPrediction, this.latestPrice);
-        } else if (action === 'run_infer') {
-            this.runQuickInference();
-        } else if (action === 'toggle_ema') {
-            this.showEma = !this.showEma;
-            if (this.dom.btnToggleEma) this.dom.btnToggleEma.classList.toggle('active', this.showEma);
-            if (this.ema20Series) this.ema20Series.applyOptions({ visible: this.showEma });
-            if (this.ema50Series) this.ema50Series.applyOptions({ visible: this.showEma });
-            if (this.ema200Series) this.ema200Series.applyOptions({ visible: this.showEma });
-            if (this.showEma && this.cachedCandles) this.updateOverlaySeries(this.cachedCandles);
-        } else if (action === 'toggle_bb') {
-            this.showBb = !this.showBb;
-            if (this.dom.btnToggleBb) this.dom.btnToggleBb.classList.toggle('active', this.showBb);
-            if (this.bbUpperSeries) this.bbUpperSeries.applyOptions({ visible: this.showBb });
-            if (this.bbLowerSeries) this.bbLowerSeries.applyOptions({ visible: this.showBb });
-            if (this.showBb && this.cachedCandles) this.updateOverlaySeries(this.cachedCandles);
-        } else if (action === 'toggle_dom') {
-            if (this.wsManager) this.wsManager.toggleDom();
-        } else if (action === 'toggle_rsi') {
-            this.showRsi = !this.showRsi;
-            if (this.dom.btnToggleRsi) this.dom.btnToggleRsi.classList.toggle('active', this.showRsi);
-            this.updateRsiIndicator(this.cachedCandles);
-        } else if (action === 'toggle_sidebar') {
-            this.toggleSidebar();
-        } else if (action === 'paper_long') {
-            if (this.paper) {
-                this.paper.selectedSide = 'LONG';
-                this.paper.updateSideButtons();
-                this.paper.executeOrder();
-            }
-        } else if (action === 'paper_short') {
-            if (this.paper) {
-                this.paper.selectedSide = 'SHORT';
-                this.paper.updateSideButtons();
-                this.paper.executeOrder();
-            }
-        } else if (action === 'paper_close_all') {
-            if (this.paper) this.paper.closeAllPositions();
-        } else if (action === 'paper_reset') {
-            if (this.paper) this.paper.resetAccount();
-        } else if (action === 'paper_export') {
-            if (this.paper) this.paper.exportCSV();
-        } else if (action === 'paper_tab') {
-            if (this.paper) this.paper.switchTab(param);
-        } else if (action === 'ap_toggle') {
-            if (this.autoPilot) this.autoPilot.setEnabled(!this.autoPilot.enabled);
-        } else if (action === 'ap_thresh') {
-            if (this.autoPilot) {
-                this.autoPilot.minConviction = param;
-                this.autoPilot.setEnabled(true);
-            }
-        } else if (action === 'ap_kill') {
-            if (this.autoPilot) this.autoPilot.emergencyStop();
-        } else if (action === 'run_backtest') {
-            if (this.paper) this.paper.switchTab('backtest');
-            this.loadBacktestData(true);
-        } else if (action === 'inspect_regime') {
-            if (this.cachedRegime && this.paper) {
-                const r = this.cachedRegime;
-                const m = r.metrics || {};
-                this.paper.showToast('info', `📊 ${r.label}`, `${r.description} (ADX: ${m.adx || 'N/A'}, ATR Exp: ${m.atr_expansion || 'N/A'}x). Strategy: ${r.strategy_bias}`);
-            }
-        } else if (action === 'workspace_mode') {
-            this.setWorkspaceMode(param);
-        }
-    }
 }
 
 // =========================================================================
@@ -3734,7 +3733,19 @@ class BinanceWebSocketManager {
     }
 }
 
-// Global instance initialization on DOM Ready
-document.addEventListener('DOMContentLoaded', () => {
-    window.terminal = new TradeSignalTerminal();
-});
+// Global instance initialization with bulletproof DOM-ready check
+function bootstrapApp() {
+    if (!window.terminal) {
+        try {
+            window.terminal = new TradeSignalTerminal();
+        } catch (err) {
+            console.error("Critical error instantiating TradeSignalTerminal:", err);
+        }
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootstrapApp);
+} else {
+    bootstrapApp();
+}

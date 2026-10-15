@@ -12,6 +12,11 @@ import os
 import time
 from pathlib import Path
 from typing import Optional, Dict, Any, List
+import json
+import urllib.request
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Ensure parent directory is in sys.path
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -136,25 +141,46 @@ async def get_ticker_data():
 
     def _fetch_tickers():
         results = []
+        binance_data = {}
+        try:
+            req = urllib.request.Request(
+                'https://api.binance.com/api/v3/ticker/24hr',
+                headers={'User-Agent': 'TradeSignal/2.0'}
+            )
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                raw_list = json.loads(resp.read().decode())
+                binance_data = {
+                    item['symbol']: (float(item['lastPrice']), float(item['priceChangePercent']))
+                    for item in raw_list
+                }
+        except Exception as e:
+            logger.warning(f"Bulk Binance ticker fetch failed: {e}")
+
         for item in WATCHLIST_SYMBOLS:
             sym = item["symbol"]
-            price_info = data_fetcher.get_real_time_price(sym)
-            price_val = float(price_info.get('price', 0.0)) if isinstance(price_info, dict) else float(price_info or 0.0)
-            change = 0.0
-            try:
-                df = data_fetcher.get_data(sym, period="2d", timeframe="1d")
-                if len(df) >= 2:
-                    prev_close = float(df['Close'].iloc[-2])
-                    cur_close = float(df['Close'].iloc[-1])
-                    change = ((cur_close - prev_close) / prev_close) * 100
-            except Exception:
-                pass
+            clean = sym.upper().replace("-USD", "").replace("USDT", "")
+            binance_sym = f"{clean}USDT"
+            
+            if binance_sym in binance_data:
+                price_val, change = binance_data[binance_sym]
+            else:
+                price_info = data_fetcher.get_real_time_price(sym)
+                price_val = float(price_info.get('price', 0.0)) if isinstance(price_info, dict) else float(price_info or 0.0)
+                change = 0.0
+                try:
+                    df = data_fetcher.get_data(sym, period="2d", timeframe="1d")
+                    if len(df) >= 2:
+                        prev_close = float(df['Close'].iloc[-2])
+                        cur_close = float(df['Close'].iloc[-1])
+                        change = ((cur_close - prev_close) / prev_close) * 100
+                except Exception:
+                    pass
 
             results.append({
                 "symbol": sym.replace("-USD", ""),
                 "full_symbol": sym,
                 "name": item["name"],
-                "price": price_val,
+                "price": round(price_val, 4 if price_val < 10 else 2),
                 "change_pct": round(change, 2)
             })
         return {"tickers": results}
@@ -432,28 +458,31 @@ async def get_market_news(symbol: str = Query("BTC-USD")):
         if now - entry["timestamp"] < 90:  # 90s cache
             return entry["data"]
 
-    headlines = fetch_structured_news(symbol, limit=8)
-    scores = [h["score"] for h in headlines]
-    avg_score = round(sum(scores) / len(scores), 3) if scores else 0.0
+    def _fetch_news_payload():
+        headlines = fetch_structured_news(symbol, limit=8)
+        scores = [h["score"] for h in headlines]
+        avg_score = round(sum(scores) / len(scores), 3) if scores else 0.0
 
-    sentiment_label = "EXTREME GREED (BULLISH)" if avg_score >= 0.35 else (
-        "BULLISH" if avg_score >= 0.10 else (
-            "EXTREME FEAR (BEARISH)" if avg_score <= -0.35 else (
-                "BEARISH" if avg_score <= -0.10 else "NEUTRAL"
+        sentiment_label = "EXTREME GREED (BULLISH)" if avg_score >= 0.35 else (
+            "BULLISH" if avg_score >= 0.10 else (
+                "EXTREME FEAR (BEARISH)" if avg_score <= -0.35 else (
+                    "BEARISH" if avg_score <= -0.10 else "NEUTRAL"
+                )
             )
         )
-    )
 
-    fundamentals = data_fetcher.get_asset_fundamentals(symbol)
+        fundamentals = data_fetcher.get_asset_fundamentals(symbol)
 
-    payload = {
-        "symbol": symbol,
-        "sentiment_score": avg_score,
-        "sentiment_label": sentiment_label,
-        "headline_count": len(headlines),
-        "headlines": headlines,
-        "fundamentals": fundamentals
-    }
+        return {
+            "symbol": symbol,
+            "sentiment_score": avg_score,
+            "sentiment_label": sentiment_label,
+            "headline_count": len(headlines),
+            "headlines": headlines,
+            "fundamentals": fundamentals
+        }
+
+    payload = await asyncio.to_thread(_fetch_news_payload)
     _NEWS_CACHE[symbol] = {"timestamp": now, "data": payload}
     return payload
 
