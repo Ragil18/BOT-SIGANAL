@@ -95,6 +95,8 @@ class CandlesResponseSpec(BaseModel):
     available_presets: Optional[Dict[str, Any]] = None
     ml_prediction: Optional[MLPredictionSpec] = None
     regime: Optional[Dict[str, Any]] = None
+    pattern_markers: Optional[List[MarkerItemSpec]] = Field(default_factory=list)
+    latest_pattern: Optional[Dict[str, Any]] = None
 
 
 class ConfluenceItemSpec(BaseModel):

@@ -15,9 +15,12 @@ class TradeSignalTerminal {
         // Next-Gen Overlays & Price Lines
         this.showTpSl = true;
         this.showMlTarget = true;
+        this.showPatterns = true;
         this.showRsi = false;
         this.showEma = false;
         this.showBb = false;
+        this.cachedSignalMarkers = [];
+        this.cachedPatternMarkers = [];
         this.tpPriceLine = null;
         this.slPriceLine = null;
         this.mlTargetPriceLine = null;
@@ -178,6 +181,9 @@ class TradeSignalTerminal {
             aiPillBadge: document.getElementById('ai-pill-badge'),
             btnToggleTpSl: document.getElementById('btn-toggle-tpsl'),
             btnToggleMlTarget: document.getElementById('btn-toggle-ml-target'),
+            btnTogglePatterns: document.getElementById('btn-toggle-patterns'),
+            chartPatternBadge: document.getElementById('chart-pattern-badge'),
+            chartPatternText: document.getElementById('chart-pattern-text'),
             btnToggleEma: document.getElementById('btn-toggle-ema'),
             btnToggleBb: document.getElementById('btn-toggle-bb'),
             btnOpenCmd: document.getElementById('btn-open-cmd'),
@@ -566,6 +572,14 @@ class TradeSignalTerminal {
                 this.showMlTarget = !this.showMlTarget;
                 this.dom.btnToggleMlTarget.classList.toggle('active', this.showMlTarget);
                 this.updateMlTargetPriceLine(this.cachedMlPrediction, this.latestPrice);
+            });
+        }
+
+        if (this.dom.btnTogglePatterns) {
+            this.dom.btnTogglePatterns.addEventListener('click', () => {
+                this.showPatterns = !this.showPatterns;
+                this.dom.btnTogglePatterns.classList.toggle('active', this.showPatterns);
+                this.renderCombinedMarkers();
             });
         }
 
@@ -967,10 +981,11 @@ class TradeSignalTerminal {
                     this.wsManager.lastCandle = { ...data.candles[data.candles.length - 1] };
                 }
                 
-                // 2. Set ONLY BUY/SELL markers at trigger transition points
-                if (data.markers) {
-                    this.candlestickSeries.setMarkers(data.markers);
-                }
+                // 2. Set BUY/SELL markers + Candlestick Pattern Detection markers
+                this.cachedSignalMarkers = data.markers || [];
+                this.cachedPatternMarkers = data.pattern_markers || [];
+                this.renderCombinedMarkers();
+                this.updateActivePatternBadge(data.latest_pattern);
                 
                 if (showLoader) {
                     this.chart.timeScale().fitContent();
@@ -1505,6 +1520,33 @@ class TradeSignalTerminal {
         return { upper, lower };
     }
 
+    renderCombinedMarkers() {
+        if (!this.candlestickSeries) return;
+        const markers = [...(this.cachedSignalMarkers || [])];
+        if (this.showPatterns && this.cachedPatternMarkers && this.cachedPatternMarkers.length > 0) {
+            markers.push(...this.cachedPatternMarkers);
+        }
+        // TradingView Lightweight Charts requires markers to be in ascending chronological order
+        markers.sort((a, b) => a.time - b.time);
+        try {
+            this.candlestickSeries.setMarkers(markers);
+        } catch (e) {
+            console.error("Error setting combined markers:", e);
+        }
+    }
+
+    updateActivePatternBadge(latestPattern) {
+        if (!this.dom.chartPatternBadge || !this.dom.chartPatternText) return;
+        if (!latestPattern || !latestPattern.pattern_name || latestPattern.pattern_name === 'None') {
+            this.dom.chartPatternBadge.classList.add('hidden');
+            return;
+        }
+        const isBearish = latestPattern.pattern_type === 'BEARISH';
+        this.dom.chartPatternText.textContent = latestPattern.pattern_name.toUpperCase();
+        this.dom.chartPatternBadge.className = `pattern-pill ${isBearish ? 'bearish' : ''}`;
+        this.dom.chartPatternBadge.classList.remove('hidden');
+    }
+
     async loadNewsData() {
         const gaugeBadge = document.getElementById('sentiment-gauge-badge');
         const meterFill = document.getElementById('sentiment-meter-fill');
@@ -1872,6 +1914,7 @@ class TradeSignalTerminal {
             { category: 'OVERLAY', text: 'Toggle Level-2 Order Book (DOM Ladder)', action: 'toggle_dom', param: null },
             { category: 'OVERLAY', text: 'Toggle On-Chart TP / SL Price Lines', action: 'toggle_tpsl', param: null },
             { category: 'OVERLAY', text: 'Toggle On-Chart AI Predicted Target Price Line', action: 'toggle_ml_target', param: null },
+            { category: 'OVERLAY', text: 'Toggle Candlestick Patterns (Hammer, Stars, Engulfing)', action: 'toggle_patterns', param: null },
             { category: 'OVERLAY', text: 'Toggle EMA Ribbons (20, 50, 200)', action: 'toggle_ema', param: null },
             { category: 'OVERLAY', text: 'Toggle Bollinger Bands Volatility Envelope', action: 'toggle_bb', param: null },
             { category: 'OVERLAY', text: 'Toggle On-Chart RSI Momentum Ribbon', action: 'toggle_rsi', param: null },
@@ -1975,6 +2018,10 @@ class TradeSignalTerminal {
             this.showMlTarget = !this.showMlTarget;
             if (this.dom.btnToggleMlTarget) this.dom.btnToggleMlTarget.classList.toggle('active', this.showMlTarget);
             this.updateMlTargetPriceLine(this.cachedMlPrediction, this.latestPrice);
+        } else if (action === 'toggle_patterns') {
+            this.showPatterns = !this.showPatterns;
+            if (this.dom.btnTogglePatterns) this.dom.btnTogglePatterns.classList.toggle('active', this.showPatterns);
+            this.renderCombinedMarkers();
         } else if (action === 'run_infer') {
             this.runQuickInference();
         } else if (action === 'toggle_ema') {

@@ -227,7 +227,7 @@ async def get_candles(
             return df, None, None, None, None, None
         inds = tech_indicators.calculate_all(df, {}, preset=preset)
         sigs = signal_generator.generate_signals(df, inds, threshold, preset=preset)
-        pats = PatternRecognition.detect_patterns(df.iloc[-100:])
+        pats = PatternRecognition.detect_patterns(df)
         latest_pat = pats.iloc[-1].to_dict() if not pats.empty else None
         funds = {}
         return df, inds, sigs, pats, latest_pat, funds
@@ -300,6 +300,34 @@ async def get_candles(
                 })
         prev_sig = cur_sig
 
+    # Generate Candlestick Pattern Markers
+    pattern_markers = []
+    pattern_icon_map = {
+        'Hammer (Pinbar)': ('🔨 Hammer', 'belowBar', '#00F2FE', 'arrowUp'),
+        'Bullish Engulfing': ('⚡ Bull Engulf', 'belowBar', '#00E676', 'arrowUp'),
+        'Bearish Engulfing': ('🔻 Bear Engulf', 'aboveBar', '#FF3366', 'arrowDown'),
+        'Shooting Star': ('🌠 Shooting Star', 'aboveBar', '#FFB300', 'arrowDown'),
+        'Morning Star': ('⭐ Morning Star', 'belowBar', '#00F2FE', 'arrowUp'),
+        'Evening Star': ('🌌 Evening Star', 'aboveBar', '#FF5252', 'arrowDown'),
+        'Resistance Breakout': ('🚀 Breakout', 'belowBar', '#7C4DFF', 'arrowUp'),
+        'Support Breakdown': ('📉 Breakdown', 'aboveBar', '#E040FB', 'arrowDown'),
+    }
+
+    if patterns is not None and not patterns.empty:
+        for i in range(min(len(patterns), len(candles))):
+            p_name = str(patterns['pattern_name'].iloc[i])
+            if p_name in pattern_icon_map:
+                label, pos, col, shape = pattern_icon_map[p_name]
+                ts = candles[i]["time"]
+                pattern_markers.append({
+                    "time": ts,
+                    "position": pos,
+                    "color": col,
+                    "shape": shape,
+                    "text": label,
+                    "size": 1
+                })
+
     latest_price = candles[-1]["close"]
     latest_sig = signals['signal'].iloc[-1] if not signals.empty else "HOLD"
     latest_strength = float(signals['strength'].iloc[-1]) if not signals.empty else 0.0
@@ -328,6 +356,8 @@ async def get_candles(
         "candles": candles,
         "volume": volume_data,
         "markers": markers,
+        "pattern_markers": pattern_markers,
+        "latest_pattern": latest_pattern,
         "current_price": latest_price,
         "current_signal": {
             "signal": latest_sig,

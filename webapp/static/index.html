@@ -170,6 +170,9 @@
                             <button class="overlay-btn active" id="btn-toggle-ml-target" data-overlay="ml" title="Toggle AI/ML Predicted Target Price Line">
                                 <span class="btn-dot cyan"></span> AI Target
                             </button>
+                            <button class="overlay-btn active" id="btn-toggle-patterns" data-overlay="patterns" title="Toggle Candlestick Pattern Overlay (Hammer, Engulfing, Stars, Breakouts)">
+                                <span class="btn-dot blue"></span> 🏷️ Patterns
+                            </button>
                             <button class="overlay-btn" id="btn-toggle-rsi" data-overlay="rsi" title="Toggle RSI Momentum Ribbon">
                                 <span class="btn-dot magenta"></span> RSI
                             </button>
@@ -197,6 +200,7 @@
                             <div id="tv-chart" class="tv-chart"></div>
                             <div class="chart-legend" id="chart-legend">
                                 <span class="legend-indicator">🎯 <b>Signals Active:</b> Price Action & Triggers</span>
+                                <span class="pattern-pill hidden" id="chart-pattern-badge" title="Active Candlestick Pattern">🏷️ <b id="chart-pattern-text">NONE</b></span>
                                 <span class="legend-stats" id="legend-stats">O: - H: - L: - C: -</span>
                             </div>
                             <div id="chart-loading" class="chart-loading hidden">

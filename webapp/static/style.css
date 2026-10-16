@@ -792,6 +792,7 @@ body.dark-theme {
 .btn-dot.amber { background: var(--color-warning); }
 .btn-dot.purple { background: #c084fc; }
 .btn-dot.magenta { background: #ec4899; box-shadow: 0 0 6px rgba(236, 72, 153, 0.6); }
+.btn-dot.blue { background: #00F2FE; box-shadow: 0 0 6px rgba(0, 242, 254, 0.6); }
 .btn-dot.gray { background: var(--text-dim); }
 
 /* Live Candle Close Countdown Badge */
@@ -909,6 +910,32 @@ body.dark-theme {
     border-radius: 2px;
     width: fit-content;
     font-variant-numeric: tabular-nums;
+}
+
+.pattern-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    color: #00F2FE;
+    background: rgba(0, 242, 254, 0.12);
+    border: 1px solid rgba(0, 242, 254, 0.4);
+    padding: 2px 7px;
+    border-radius: 2px;
+    width: fit-content;
+    animation: pulseGlow 2.5s infinite ease-in-out;
+}
+
+.pattern-pill.bearish {
+    color: #FF3366;
+    background: rgba(255, 51, 102, 0.12);
+    border-color: rgba(255, 51, 102, 0.4);
+}
+
+.pattern-pill.hidden {
+    display: none !important;
 }
 
 .chart-loading {
