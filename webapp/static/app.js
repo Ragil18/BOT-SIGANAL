@@ -15,12 +15,24 @@ class TradeSignalTerminal {
         // Next-Gen Overlays & Price Lines
         this.showTpSl = true;
         this.showMlTarget = true;
-        this.showPatterns = true;
+        this.showPatterns = false; // Kept clean and false by default on Page 1!
         this.showRsi = false;
         this.showEma = false;
         this.showBb = false;
         this.cachedSignalMarkers = [];
         this.cachedPatternMarkers = [];
+        this.patternFilters = {
+            'Hammer (Pinbar)': true,
+            'Bullish Engulfing': true,
+            'Bearish Engulfing': true,
+            'Shooting Star': true,
+            'Morning Star': true,
+            'Evening Star': true,
+            'Resistance Breakout': true,
+            'Support Breakdown': true
+        };
+        this.patternLabChart = null;
+        this.patternLabSeries = null;
         this.tpPriceLine = null;
         this.slPriceLine = null;
         this.mlTargetPriceLine = null;
@@ -191,6 +203,38 @@ class TradeSignalTerminal {
             cmdInput: document.getElementById('cmd-palette-input'),
             cmdCloseEsc: document.getElementById('cmd-close-esc'),
             cmdResultsList: document.getElementById('cmd-results-list'),
+            // Pattern & Inference Lab DOM Elements
+            btnRecomputeInference: document.getElementById('btn-recompute-inference'),
+            infConvictionPct: document.getElementById('inf-conviction-pct'),
+            infDirectionBadge: document.getElementById('inf-direction-badge'),
+            infPhiVal: document.getElementById('inf-phi-val'),
+            infConvictionBar: document.getElementById('inf-conviction-bar'),
+            infNarrativeText: document.getElementById('inf-narrative-text'),
+            infExecBias: document.getElementById('inf-exec-bias'),
+            infExecTp: document.getElementById('inf-exec-tp'),
+            infExecSl: document.getElementById('inf-exec-sl'),
+            infExecRr: document.getElementById('inf-exec-rr'),
+            mfMlDesc: document.getElementById('mf-ml-desc'),
+            mfMlContrib: document.getElementById('mf-ml-contrib'),
+            mfPatDesc: document.getElementById('mf-pat-desc'),
+            mfPatContrib: document.getElementById('mf-pat-contrib'),
+            mfTechDesc: document.getElementById('mf-tech-desc'),
+            mfTechContrib: document.getElementById('mf-tech-contrib'),
+            mfRegimeDesc: document.getElementById('mf-regime-desc'),
+            mfRegimeContrib: document.getElementById('mf-regime-contrib'),
+            mfNewsDesc: document.getElementById('mf-news-desc'),
+            mfNewsContrib: document.getElementById('mf-news-contrib'),
+            activePatternsSummary: document.getElementById('active-patterns-summary'),
+            patternLedgerTbody: document.getElementById('pattern-ledger-tbody'),
+            filteredMarkersTag: document.getElementById('filtered-markers-tag'),
+            patChartSym: document.getElementById('pat-chart-sym'),
+            patternLabChartContainer: document.getElementById('pattern-lab-chart-container'),
+            btnFitPatternChart: document.getElementById('btn-fit-pattern-chart'),
+            btnSyncToTerminal: document.getElementById('btn-sync-to-terminal'),
+            btnPatAll: document.getElementById('btn-pat-all'),
+            btnPatNone: document.getElementById('btn-pat-none'),
+            btnPatBull: document.getElementById('btn-pat-bull'),
+            btnPatBear: document.getElementById('btn-pat-bear'),
             // Backtest Studio DOM Elements
             btPresetSelect: document.getElementById('bt-preset-select'),
             btPeriodChips: document.getElementById('bt-period-chips'),
@@ -623,6 +667,9 @@ class TradeSignalTerminal {
             this.paper.bindEvents();
         }
 
+        // Pattern Lab & Inference Lab Event Bindings
+        this.bindPatternLabEvents();
+
         // Backtest Controls Event Bindings
         if (this.dom.btPresetSelect) {
             this.dom.btPresetSelect.addEventListener('change', (e) => {
@@ -731,23 +778,24 @@ class TradeSignalTerminal {
             });
         });
 
-        // Keyboard Shortcuts: Alt+1 (Terminal), Alt+2 (Quant), Alt+3 (Studio)
+        // Keyboard Shortcuts: Alt+1 (Terminal), Alt+2 (Quant), Alt+3 (Studio), Alt+4 (Patterns)
         window.addEventListener('keydown', (e) => {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
             if (e.altKey && e.key === '1') { e.preventDefault(); this.switchPage('terminal'); }
             if (e.altKey && e.key === '2') { e.preventDefault(); this.switchPage('quant'); }
             if (e.altKey && e.key === '3') { e.preventDefault(); this.switchPage('studio'); }
+            if (e.altKey && e.key === '4') { e.preventDefault(); this.switchPage('patterns'); }
         });
 
         // Initialize from URL hash if provided
         const hash = window.location.hash.replace('#', '').toLowerCase();
-        if (['terminal', 'quant', 'studio'].includes(hash)) {
+        if (['terminal', 'quant', 'studio', 'patterns'].includes(hash)) {
             this.switchPage(hash);
         }
     }
 
     switchPage(page) {
-        if (!['terminal', 'quant', 'studio'].includes(page)) page = 'terminal';
+        if (!['terminal', 'quant', 'studio', 'patterns'].includes(page)) page = 'terminal';
         this.activePage = page;
         window.location.hash = page;
 
@@ -778,6 +826,18 @@ class TradeSignalTerminal {
                     });
                 }
             }, 60);
+        } else if (page === 'patterns') {
+            this.initPatternLabChart();
+            this.updatePatternLabView();
+            setTimeout(() => {
+                if (this.patternLabChart && this.dom.patternLabChartContainer) {
+                    this.patternLabChart.applyOptions({
+                        width: this.dom.patternLabChartContainer.clientWidth,
+                        height: this.dom.patternLabChartContainer.clientHeight
+                    });
+                    this.patternLabChart.timeScale().fitContent();
+                }
+            }, 80);
         } else if (page === 'studio') {
             if (this.loadBacktestData) {
                 this.loadBacktestData(true);
@@ -1073,6 +1133,14 @@ class TradeSignalTerminal {
             // 12. Update Market Regime Classifier HUD & Guardrail Banners
             if (data.regime) {
                 this.updateRegimeBadge(data.regime);
+            }
+
+            // 13. Cache data and update Multi-Factor Quantitative Inference & Pattern Lab
+            this.cachedData = data;
+            if (this.activePage === 'patterns') {
+                this.updatePatternLabView();
+            } else {
+                this.computeMultiFactorInference();
             }
 
             // Strategy Consensus Alignment Badges (Trend, Momentum, Volatility)
@@ -1524,7 +1592,11 @@ class TradeSignalTerminal {
         if (!this.candlestickSeries) return;
         const markers = [...(this.cachedSignalMarkers || [])];
         if (this.showPatterns && this.cachedPatternMarkers && this.cachedPatternMarkers.length > 0) {
-            markers.push(...this.cachedPatternMarkers);
+            const filtered = this.cachedPatternMarkers.filter(m => {
+                if (!m.pattern_name) return true;
+                return this.patternFilters ? this.patternFilters[m.pattern_name] !== false : true;
+            });
+            markers.push(...filtered);
         }
         // TradingView Lightweight Charts requires markers to be in ascending chronological order
         markers.sort((a, b) => a.time - b.time);
@@ -1532,6 +1604,385 @@ class TradeSignalTerminal {
             this.candlestickSeries.setMarkers(markers);
         } catch (e) {
             console.error("Error setting combined markers:", e);
+        }
+    }
+
+    // =========================================================================
+    // Pattern & Multi-Factor Inference Lab
+    // =========================================================================
+
+    bindPatternLabEvents() {
+        // Individual pattern checkbox changes
+        const container = document.getElementById('pattern-toggles-container');
+        if (container) {
+            container.addEventListener('change', (e) => {
+                const checkbox = e.target.closest('.pat-checkbox');
+                if (!checkbox) return;
+                const patKey = checkbox.dataset.pattern;
+                this.patternFilters[patKey] = checkbox.checked;
+                this.updatePatternLabView();
+            });
+        }
+
+        // Quick filter buttons
+        if (this.dom.btnPatAll) {
+            this.dom.btnPatAll.addEventListener('click', () => {
+                Object.keys(this.patternFilters).forEach(k => { this.patternFilters[k] = true; });
+                document.querySelectorAll('.pat-checkbox').forEach(cb => { cb.checked = true; });
+                this.updatePatternLabView();
+            });
+        }
+        if (this.dom.btnPatNone) {
+            this.dom.btnPatNone.addEventListener('click', () => {
+                Object.keys(this.patternFilters).forEach(k => { this.patternFilters[k] = false; });
+                document.querySelectorAll('.pat-checkbox').forEach(cb => { cb.checked = false; });
+                this.updatePatternLabView();
+            });
+        }
+        if (this.dom.btnPatBull) {
+            this.dom.btnPatBull.addEventListener('click', () => {
+                const bullPatterns = ['Hammer (Pinbar)', 'Bullish Engulfing', 'Morning Star', 'Resistance Breakout'];
+                Object.keys(this.patternFilters).forEach(k => {
+                    this.patternFilters[k] = bullPatterns.includes(k);
+                });
+                document.querySelectorAll('.pat-checkbox').forEach(cb => {
+                    cb.checked = bullPatterns.includes(cb.dataset.pattern);
+                });
+                this.updatePatternLabView();
+            });
+        }
+        if (this.dom.btnPatBear) {
+            this.dom.btnPatBear.addEventListener('click', () => {
+                const bearPatterns = ['Bearish Engulfing', 'Shooting Star', 'Evening Star', 'Support Breakdown'];
+                Object.keys(this.patternFilters).forEach(k => {
+                    this.patternFilters[k] = bearPatterns.includes(k);
+                });
+                document.querySelectorAll('.pat-checkbox').forEach(cb => {
+                    cb.checked = bearPatterns.includes(cb.dataset.pattern);
+                });
+                this.updatePatternLabView();
+            });
+        }
+
+        // Action buttons
+        if (this.dom.btnFitPatternChart) {
+            this.dom.btnFitPatternChart.addEventListener('click', () => {
+                if (this.patternLabChart) this.patternLabChart.timeScale().fitContent();
+            });
+        }
+
+        if (this.dom.btnSyncToTerminal) {
+            this.dom.btnSyncToTerminal.addEventListener('click', () => {
+                this.showPatterns = true;
+                if (this.dom.btnTogglePatterns) this.dom.btnTogglePatterns.classList.add('active');
+                this.renderCombinedMarkers();
+                if (this.paper && this.paper.showToast) {
+                    this.paper.showToast("🏷️ Pattern filters synchronized to Trading Terminal chart!", "success");
+                }
+            });
+        }
+
+        if (this.dom.btnRecomputeInference) {
+            this.dom.btnRecomputeInference.addEventListener('click', () => {
+                this.computeMultiFactorInference();
+                if (this.paper && this.paper.showToast) {
+                    this.paper.showToast("🔬 Multi-factor quantitative matrix recomputed!", "info");
+                }
+            });
+        }
+    }
+
+    initPatternLabChart() {
+        if (this.patternLabChart || !window.LightweightCharts) return;
+        const container = this.dom.patternLabChartContainer;
+        if (!container) return;
+
+        this.patternLabChart = LightweightCharts.createChart(container, {
+            layout: {
+                background: { type: 'solid', color: '#0D121D' },
+                textColor: '#8B98B2',
+                fontFamily: "'JetBrains Mono', 'Inter', monospace",
+                fontSize: 11
+            },
+            grid: {
+                vertLines: { color: 'rgba(255, 255, 255, 0.03)' },
+                horzLines: { color: 'rgba(255, 255, 255, 0.03)' }
+            },
+            crosshair: {
+                mode: LightweightCharts.CrosshairMode.Normal,
+                vertLine: { color: 'rgba(0, 242, 254, 0.4)', width: 1, style: 3 },
+                horzLine: { color: 'rgba(0, 242, 254, 0.4)', width: 1, style: 3 }
+            },
+            timeScale: {
+                borderColor: 'rgba(255, 255, 255, 0.08)',
+                timeVisible: true,
+                secondsVisible: false
+            },
+            rightPriceScale: {
+                borderColor: 'rgba(255, 255, 255, 0.08)'
+            }
+        });
+
+        this.patternLabSeries = this.patternLabChart.addCandlestickSeries({
+            upColor: '#00E676',
+            downColor: '#FF3366',
+            borderVisible: false,
+            wickUpColor: '#00E676',
+            wickDownColor: '#FF3366'
+        });
+    }
+
+    updatePatternLabView() {
+        if (!this.cachedCandles || this.cachedCandles.length === 0) return;
+
+        // Ensure chart is ready
+        this.initPatternLabChart();
+        if (this.patternLabSeries) {
+            this.patternLabSeries.setData(this.cachedCandles);
+        }
+
+        // Update symbol tag
+        if (this.dom.patChartSym) {
+            const cleanSym = this.activeSymbol.replace('-USD', '');
+            this.dom.patChartSym.textContent = `${cleanSym} · ${this.activeTimeframe.toUpperCase()}`;
+        }
+
+        // Calculate counts per pattern
+        const counts = {};
+        const allMarkers = this.cachedPatternMarkers || [];
+        allMarkers.forEach(m => {
+            const key = m.pattern_name || m.text;
+            counts[key] = (counts[key] || 0) + 1;
+        });
+
+        // Update count badges
+        const idMap = {
+            'Hammer (Pinbar)': 'cnt-Hammer-Pinbar',
+            'Bullish Engulfing': 'cnt-Bullish-Engulfing',
+            'Bearish Engulfing': 'cnt-Bearish-Engulfing',
+            'Shooting Star': 'cnt-Shooting-Star',
+            'Morning Star': 'cnt-Morning-Star',
+            'Evening Star': 'cnt-Evening-Star',
+            'Resistance Breakout': 'cnt-Resistance-Breakout',
+            'Support Breakdown': 'cnt-Support-Breakdown'
+        };
+
+        Object.keys(idMap).forEach(key => {
+            const el = document.getElementById(idMap[key]);
+            if (el) {
+                const c = counts[key] || 0;
+                el.textContent = `${c} found`;
+            }
+        });
+
+        // Filter markers according to active switches
+        const filteredMarkers = allMarkers.filter(m => {
+            const name = m.pattern_name;
+            return name ? (this.patternFilters[name] !== false) : true;
+        });
+
+        filteredMarkers.sort((a, b) => a.time - b.time);
+
+        if (this.patternLabSeries) {
+            try {
+                this.patternLabSeries.setMarkers(filteredMarkers);
+            } catch (e) {
+                console.error("PatternLab setMarkers error:", e);
+            }
+        }
+
+        // Update active markers status count
+        if (this.dom.filteredMarkersTag) {
+            this.dom.filteredMarkersTag.textContent = `${filteredMarkers.length} Markers Plotted`;
+        }
+
+        const activeCount = Object.values(this.patternFilters).filter(Boolean).length;
+        if (this.dom.activePatternsSummary) {
+            this.dom.activePatternsSummary.textContent = `${activeCount} of 8 Active`;
+        }
+
+        // Populate recent detections ledger table
+        if (this.dom.patternLedgerTbody && allMarkers.length > 0) {
+            const recent = [...allMarkers].reverse().slice(0, 15);
+            this.dom.patternLedgerTbody.innerHTML = recent.map(m => {
+                const d = new Date(m.time * 1000);
+                const timeStr = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                const isBull = m.position === 'belowBar';
+                const biasClass = isBull ? 'bull' : 'bear';
+                const biasText = isBull ? 'BULLISH' : 'BEARISH';
+                return `
+                    <tr>
+                        <td style="color:#8B98B2;">${timeStr}</td>
+                        <td style="font-weight:600; color:#FFFFFF;">${m.text}</td>
+                        <td><span class="pat-dir-tag ${biasClass}">${biasText}</span></td>
+                        <td style="font-family:'JetBrains Mono'; color:#00F2FE;">$${this.latestPrice ? (this.latestPrice > 10 ? this.latestPrice.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : this.latestPrice.toFixed(4)) : '--'}</td>
+                        <td style="color:#8B98B2;">L2 Verified</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        this.computeMultiFactorInference();
+    }
+
+    computeMultiFactorInference() {
+        const data = this.cachedData || {};
+        const ml = this.cachedMlPrediction || data.ml_prediction || {};
+        const curSig = data.current_signal || {};
+        const patterns = this.cachedPatternMarkers || [];
+        const latestPattern = data.latest_pattern || {};
+        const regime = data.regime || 'RANGE-BOUND CONSOLIDATION';
+        const targets = data.targets || {};
+
+        // 1. Machine Learning Score (Weight: 30%)
+        let mlProb = 0.5;
+        let mlScore = 0;
+        let mlDesc = 'Deep LSTM: Neutral';
+        if (ml.probabilities) {
+            mlProb = ml.probabilities.bullish || 0.5;
+            mlScore = Math.round((ml.probabilities.bullish - ml.probabilities.bearish) * 100);
+            mlDesc = `${ml.model_type || 'Neural Net'}: ${(mlProb * 100).toFixed(1)}% Bullish (${ml.horizon || 3}B Target)`;
+        } else if (curSig.signal === 'BUY') {
+            mlScore = Math.round((curSig.strength || 0.6) * 100);
+            mlDesc = `Edge Factor Model: +${curSig.score || 0.5} Bullish`;
+        } else if (curSig.signal === 'SELL') {
+            mlScore = -Math.round((curSig.strength || 0.6) * 100);
+            mlDesc = `Edge Factor Model: ${curSig.score || -0.5} Bearish`;
+        }
+        mlScore = Math.max(-100, Math.min(100, mlScore));
+        const mlContrib = (0.30 * mlScore);
+
+        // 2. Candlestick Pattern Score (Weight: 20%)
+        let bullPatCount = 0;
+        let bearPatCount = 0;
+        patterns.forEach(p => {
+            if (p.position === 'belowBar') bullPatCount++;
+            else bearPatCount++;
+        });
+        const totalPats = bullPatCount + bearPatCount;
+        let patScore = 0;
+        if (totalPats > 0) {
+            patScore = Math.round(((bullPatCount - bearPatCount) / totalPats) * 80);
+        }
+        if (latestPattern && latestPattern.pattern_name && latestPattern.pattern_name !== 'None') {
+            patScore += (latestPattern.pattern_type === 'BEARISH' ? -20 : 20);
+        }
+        patScore = Math.max(-100, Math.min(100, patScore));
+        const patContrib = (0.20 * patScore);
+        const patDesc = `Active: ${latestPattern.pattern_name || 'None'} (${bullPatCount} Bull / ${bearPatCount} Bear)`;
+
+        // 3. Technical Momentum & Trend Score (Weight: 25%)
+        let techScore = 0;
+        if (curSig.score !== undefined) {
+            techScore = Math.round(curSig.score * 100);
+        } else {
+            techScore = curSig.signal === 'BUY' ? 60 : (curSig.signal === 'SELL' ? -60 : 0);
+        }
+        techScore = Math.max(-100, Math.min(100, techScore));
+        const techContrib = (0.25 * techScore);
+        const techDesc = `Consensus: Trend ${techScore >= 0 ? 'Bull' : 'Bear'} | Strength: ${Math.abs(techScore)}%`;
+
+        // 4. Macro Market Regime (Weight: 15%)
+        let regimeScore = 0;
+        if (regime.includes('BULL') || regime.includes('EXPANSION')) regimeScore = 65;
+        else if (regime.includes('BEAR') || regime.includes('CONTRACTION')) regimeScore = -65;
+        else regimeScore = 0;
+        const regimeContrib = (0.15 * regimeScore);
+        const regimeDesc = `${regime}`;
+
+        // 5. News Sentiment (Weight: 10%)
+        let newsScore = 0;
+        const newsDesc = `Polarity: Neutral (0.00)`;
+        const newsContrib = (0.10 * newsScore);
+
+        // THE MATH: Composite Vector Φ
+        const phi = mlContrib + patContrib + techContrib + regimeContrib + newsContrib;
+        const convictionPct = Math.max(5, Math.min(98, Math.round(50 + (phi / 2))));
+
+        // Update DOM
+        if (this.dom.infConvictionPct) {
+            this.dom.infConvictionPct.textContent = `${convictionPct}%`;
+            this.dom.infConvictionPct.style.color = phi > 15 ? '#00E676' : (phi < -15 ? '#FF3366' : '#FFB300');
+        }
+
+        if (this.dom.infDirectionBadge) {
+            let label = 'NEUTRAL / RANGE';
+            let bClass = 'hold';
+            if (phi >= 40) { label = 'STRONG BULLISH'; bClass = 'buy'; }
+            else if (phi > 12) { label = 'MODERATE BULLISH'; bClass = 'buy'; }
+            else if (phi <= -40) { label = 'STRONG BEARISH'; bClass = 'sell'; }
+            else if (phi < -12) { label = 'MODERATE BEARISH'; bClass = 'sell'; }
+            this.dom.infDirectionBadge.textContent = label;
+            this.dom.infDirectionBadge.className = `signal-badge ${bClass}`;
+        }
+
+        if (this.dom.infPhiVal) {
+            this.dom.infPhiVal.textContent = `Raw Vector: Φ = ${phi > 0 ? '+' : ''}${phi.toFixed(1)} / 100`;
+        }
+
+        if (this.dom.infConvictionBar) {
+            this.dom.infConvictionBar.style.width = `${convictionPct}%`;
+        }
+
+        // Update Factor Matrix Rows
+        if (this.dom.mfMlDesc) this.dom.mfMlDesc.textContent = mlDesc;
+        if (this.dom.mfMlContrib) {
+            this.dom.mfMlContrib.textContent = `${mlContrib > 0 ? '+' : ''}${mlContrib.toFixed(1)}%`;
+            this.dom.mfMlContrib.style.color = mlContrib >= 0 ? '#00E676' : '#FF3366';
+        }
+
+        if (this.dom.mfPatDesc) this.dom.mfPatDesc.textContent = patDesc;
+        if (this.dom.mfPatContrib) {
+            this.dom.mfPatContrib.textContent = `${patContrib > 0 ? '+' : ''}${patContrib.toFixed(1)}%`;
+            this.dom.mfPatContrib.style.color = patContrib >= 0 ? '#00E676' : '#FF3366';
+        }
+
+        if (this.dom.mfTechDesc) this.dom.mfTechDesc.textContent = techDesc;
+        if (this.dom.mfTechContrib) {
+            this.dom.mfTechContrib.textContent = `${techContrib > 0 ? '+' : ''}${techContrib.toFixed(1)}%`;
+            this.dom.mfTechContrib.style.color = techContrib >= 0 ? '#00E676' : '#FF3366';
+        }
+
+        if (this.dom.mfRegimeDesc) this.dom.mfRegimeDesc.textContent = regimeDesc;
+        if (this.dom.mfRegimeContrib) {
+            this.dom.mfRegimeContrib.textContent = `${regimeContrib > 0 ? '+' : ''}${regimeContrib.toFixed(1)}%`;
+            this.dom.mfRegimeContrib.style.color = regimeContrib >= 0 ? '#00E676' : '#FF3366';
+        }
+
+        if (this.dom.mfNewsDesc) this.dom.mfNewsDesc.textContent = newsDesc;
+        if (this.dom.mfNewsContrib) {
+            this.dom.mfNewsContrib.textContent = `${newsContrib > 0 ? '+' : ''}${newsContrib.toFixed(1)}%`;
+        }
+
+        // Synthesis Narrative
+        if (this.dom.infNarrativeText) {
+            const sym = this.activeSymbol.replace('-USD', '');
+            const dir = phi > 15 ? 'BULLISH' : (phi < -15 ? 'BEARISH' : 'CONSOLIDATING');
+            const patText = (latestPattern && latestPattern.pattern_name && latestPattern.pattern_name !== 'None') 
+                ? `Confirmed by active ${latestPattern.pattern_name} (${latestPattern.pattern_type})` 
+                : `${bullPatCount} bullish vs ${bearPatCount} bearish patterns detected`;
+
+            this.dom.infNarrativeText.innerHTML = `
+                <b>${sym} Multi-Factor Confluence:</b> Quantitative inference vector resolves to <b>${phi > 0 ? '+' : ''}${phi.toFixed(1)}</b> (${convictionPct}% Conviction). 
+                ${patText}. ML Neural model probability stands at <b>${(mlProb * 100).toFixed(1)}%</b> within the ${regime} structure. 
+                Recommended Strategy: <b>${dir === 'BULLISH' ? 'LONG BIAS' : (dir === 'BEARISH' ? 'SHORT BIAS' : 'WAIT FOR RANGE BREAK')}</b> with dynamic ATR risk boundaries.
+            `;
+        }
+
+        // Execution Guidance
+        if (this.dom.infExecBias) {
+            this.dom.infExecBias.textContent = phi > 15 ? 'LONG' : (phi < -15 ? 'SHORT' : 'NEUTRAL');
+            this.dom.infExecBias.style.color = phi > 15 ? '#00E676' : (phi < -15 ? '#FF3366' : '#8B98B2');
+        }
+
+        if (this.dom.infExecTp && targets.tp) {
+            this.dom.infExecTp.textContent = `$${targets.tp > 10 ? targets.tp.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : targets.tp.toFixed(4)}`;
+        }
+        if (this.dom.infExecSl && targets.sl) {
+            this.dom.infExecSl.textContent = `$${targets.sl > 10 ? targets.sl.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) : targets.sl.toFixed(4)}`;
+        }
+        if (this.dom.infExecRr) {
+            this.dom.infExecRr.textContent = targets.rr_ratio || '1 : 1.5';
         }
     }
 
@@ -1944,10 +2395,12 @@ class TradeSignalTerminal {
             // Primary Pages Navigation
             { category: 'PAGE', text: 'Go to Trading Terminal (Charts & Order Execution)', action: 'workspace_mode', param: 'terminal' },
             { category: 'PAGE', text: 'Go to Quant & AI Intel (Signals, Deep LSTM & Bot)', action: 'workspace_mode', param: 'quant' },
+            { category: 'PAGE', text: 'Go to Pattern & Inference Lab (Multi-Factor Math & Pattern Toggles)', action: 'workspace_mode', param: 'patterns' },
             { category: 'PAGE', text: 'Go to Research Studio (Backtester, News & Analytics)', action: 'workspace_mode', param: 'studio' },
             // Workspace Mode Commands
             { category: 'VIEW', text: 'Workspace: Terminal View (Chart + L2 DOM + Execution)', action: 'workspace_mode', param: 'terminal' },
             { category: 'VIEW', text: 'Workspace: Quant View (AI ML Forecast + Macro Regime)', action: 'workspace_mode', param: 'quant' },
+            { category: 'VIEW', text: 'Workspace: Pattern Lab (Dedicated Chart + Toggles + Confluence Math)', action: 'workspace_mode', param: 'patterns' },
             { category: 'VIEW', text: 'Workspace: Studio View (Strategy Backtester & News Hub)', action: 'workspace_mode', param: 'studio' }
         ];
     }

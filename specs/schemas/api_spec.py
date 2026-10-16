@@ -31,6 +31,8 @@ class MarkerItemSpec(BaseModel):
     shape: Literal["arrowUp", "arrowDown", "circle"]
     text: str
     size: int = 2
+    pattern_name: Optional[str] = None
+    pattern_type: Optional[str] = None
 
 
 class SignalCardSpec(BaseModel):

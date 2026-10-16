@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/style.css?v=4">
     <!-- TradingView Lightweight Charts Official Standalone Library -->
     <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 </head>
@@ -39,7 +39,7 @@
             </div>
         </div>
 
-        <!-- Center: 3 Primary Pages Navigation Tabs -->
+        <!-- Center: 4 Primary Pages Navigation Tabs -->
         <nav class="page-nav-bar" id="page-nav-bar">
             <button class="page-nav-btn active" data-page="terminal" id="tab-nav-terminal">
                 <span class="nav-icon">📈</span>
@@ -48,6 +48,10 @@
             <button class="page-nav-btn" data-page="quant" id="tab-nav-quant">
                 <span class="nav-icon">🧠</span>
                 <span class="nav-title">Quant & AI Intel</span>
+            </button>
+            <button class="page-nav-btn" data-page="patterns" id="tab-nav-patterns">
+                <span class="nav-icon">🏷️</span>
+                <span class="nav-title">Pattern & Inference Lab</span>
             </button>
             <button class="page-nav-btn" data-page="studio" id="tab-nav-studio">
                 <span class="nav-icon">📊</span>
@@ -170,7 +174,7 @@
                             <button class="overlay-btn active" id="btn-toggle-ml-target" data-overlay="ml" title="Toggle AI/ML Predicted Target Price Line">
                                 <span class="btn-dot cyan"></span> AI Target
                             </button>
-                            <button class="overlay-btn active" id="btn-toggle-patterns" data-overlay="patterns" title="Toggle Candlestick Pattern Overlay (Hammer, Engulfing, Stars, Breakouts)">
+                            <button class="overlay-btn" id="btn-toggle-patterns" data-overlay="patterns" title="Toggle Candlestick Pattern Overlay on Main Chart">
                                 <span class="btn-dot blue"></span> 🏷️ Patterns
                             </button>
                             <button class="overlay-btn" id="btn-toggle-rsi" data-overlay="rsi" title="Toggle RSI Momentum Ribbon">
@@ -920,6 +924,361 @@
             </div>
         </section>
 
+
+        <!-- ====================================================================
+             PAGE 4: PATTERN & MULTI-FACTOR INFERENCE LAB
+             ==================================================================== -->
+        <section class="page-view" id="page-patterns">
+            <div class="patterns-page-layout">
+                <!-- Top Section: Multi-Factor Confluence & Inference Hero -->
+                <div class="intel-card inf-hero-card">
+                    <div class="inf-hero-header">
+                        <div class="inf-title-group">
+                            <span class="inf-badge-pill">🔬 MULTI-FACTOR CONFLUENCE & INFERENCE</span>
+                            <h2 class="inf-main-title">Quantitative Interpretation & Math Engine</h2>
+                            <span class="inf-math-formula-tag">
+                                Formula: <b>Φ = (0.30·ML) + (0.20·Pattern) + (0.25·Tech) + (0.15·Regime) + (0.10·News)</b>
+                            </span>
+                        </div>
+                        <div class="inf-actions-group">
+                            <button class="inf-refresh-btn" id="btn-recompute-inference" title="Recompute quantitative multi-factor matrix">
+                                🔄 Recalculate Inference
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 3-Column Top Intelligence Deck -->
+                    <div class="inf-deck-grid">
+                        <!-- Deck 1: Composite Conviction Gauge -->
+                        <div class="inf-deck-box conviction-box">
+                            <div class="deck-eyebrow">INSTITUTIONAL QUANT CONVICTION</div>
+                            <div class="conviction-score-row">
+                                <span class="conviction-big-pct" id="inf-conviction-pct">0.0%</span>
+                                <div class="conviction-meta">
+                                    <span class="signal-badge hold" id="inf-direction-badge">CALCULATING...</span>
+                                    <span class="conviction-sub" id="inf-phi-val">Raw Vector: Φ = 0.0</span>
+                                </div>
+                            </div>
+                            <div class="conviction-bar-track">
+                                <div class="conviction-bar-glow" id="inf-conviction-bar" style="width: 50%;"></div>
+                            </div>
+                            <div class="conviction-thresholds">
+                                <span>Bearish (&lt;40%)</span>
+                                <span>Neutral (40-60%)</span>
+                                <span>Bullish (&gt;60%)</span>
+                            </div>
+                        </div>
+
+                        <!-- Deck 2: Multi-Factor Inference Interpretation -->
+                        <div class="inf-deck-box narrative-box">
+                            <div class="deck-eyebrow">AUTOMATED QUANTITATIVE INFERENCE</div>
+                            <div class="inf-narrative-content" id="inf-narrative-text">
+                                Synthesizing real-time technical indicators, neural network predictions, detected candlestick patterns, and news sentiment...
+                            </div>
+                            <div class="inf-execution-strip">
+                                <div class="inf-exec-item">
+                                    <span class="exec-label">BIAS</span>
+                                    <span class="exec-val" id="inf-exec-bias">NEUTRAL</span>
+                                </div>
+                                <div class="inf-exec-item">
+                                    <span class="exec-label">TARGET TP</span>
+                                    <span class="exec-val pos" id="inf-exec-tp">$0.00</span>
+                                </div>
+                                <div class="inf-exec-item">
+                                    <span class="exec-label">STOP LOSS</span>
+                                    <span class="exec-val neg" id="inf-exec-sl">$0.00</span>
+                                </div>
+                                <div class="inf-exec-item">
+                                    <span class="exec-label">RISK:REWARD</span>
+                                    <span class="exec-val" id="inf-exec-rr">1 : 1.5</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Deck 3: Factor Matrix & Weight Contributions (The Math) -->
+                        <div class="inf-deck-box matrix-box">
+                            <div class="deck-eyebrow">THE MATH: 5-FACTOR WEIGHT MATRIX</div>
+                            <div class="factor-matrix-list">
+                                <div class="factor-row">
+                                    <div class="factor-row-left">
+                                        <span class="factor-icon">🧠</span>
+                                        <div class="factor-titles">
+                                            <span class="factor-name">ML Neural Net</span>
+                                            <span class="factor-desc" id="mf-ml-desc">Deep LSTM Prob: --%</span>
+                                        </div>
+                                    </div>
+                                    <div class="factor-row-right">
+                                        <span class="factor-weight-pill">Weight 30%</span>
+                                        <span class="factor-contrib" id="mf-ml-contrib">+0.0%</span>
+                                    </div>
+                                </div>
+
+                                <div class="factor-row">
+                                    <div class="factor-row-left">
+                                        <span class="factor-icon">🏷️</span>
+                                        <div class="factor-titles">
+                                            <span class="factor-name">Candle Patterns</span>
+                                            <span class="factor-desc" id="mf-pat-desc">Active: None (0 Bull / 0 Bear)</span>
+                                        </div>
+                                    </div>
+                                    <div class="factor-row-right">
+                                        <span class="factor-weight-pill">Weight 20%</span>
+                                        <span class="factor-contrib" id="mf-pat-contrib">+0.0%</span>
+                                    </div>
+                                </div>
+
+                                <div class="factor-row">
+                                    <div class="factor-row-left">
+                                        <span class="factor-icon">📈</span>
+                                        <div class="factor-titles">
+                                            <span class="factor-name">Trend & Momentum</span>
+                                            <span class="factor-desc" id="mf-tech-desc">RSI: -- | EMA Stack: --</span>
+                                        </div>
+                                    </div>
+                                    <div class="factor-row-right">
+                                        <span class="factor-weight-pill">Weight 25%</span>
+                                        <span class="factor-contrib" id="mf-tech-contrib">+0.0%</span>
+                                    </div>
+                                </div>
+
+                                <div class="factor-row">
+                                    <div class="factor-row-left">
+                                        <span class="factor-icon">🌐</span>
+                                        <div class="factor-titles">
+                                            <span class="factor-name">Market Regime</span>
+                                            <span class="factor-desc" id="mf-regime-desc">Regime: Range / Consolidation</span>
+                                        </div>
+                                    </div>
+                                    <div class="factor-row-right">
+                                        <span class="factor-weight-pill">Weight 15%</span>
+                                        <span class="factor-contrib" id="mf-regime-contrib">+0.0%</span>
+                                    </div>
+                                </div>
+
+                                <div class="factor-row">
+                                    <div class="factor-row-left">
+                                        <span class="factor-icon">📰</span>
+                                        <div class="factor-titles">
+                                            <span class="factor-name">News Sentiment</span>
+                                            <span class="factor-desc" id="mf-news-desc">Polarity: 0.00 (Neutral)</span>
+                                        </div>
+                                    </div>
+                                    <div class="factor-row-right">
+                                        <span class="factor-weight-pill">Weight 10%</span>
+                                        <span class="factor-contrib" id="mf-news-contrib">+0.0%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bottom Section: Split Pattern Station & Dedicated Lab Chart -->
+                <div class="patterns-main-grid">
+                    <!-- Left Column: Individual Pattern Toggles Station & Ledger -->
+                    <div class="pattern-station-card">
+                        <div class="station-header">
+                            <div class="station-title-row">
+                                <span class="card-eyebrow">INDIVIDUAL PATTERN TOGGLES</span>
+                                <span class="station-active-count" id="active-patterns-summary">8 of 8 Active</span>
+                            </div>
+                            <div class="station-quick-filters">
+                                <button class="filter-chip-btn" id="btn-pat-all">✓ All</button>
+                                <button class="filter-chip-btn" id="btn-pat-none">✗ None</button>
+                                <button class="filter-chip-btn bull" id="btn-pat-bull">🟢 Bullish Only</button>
+                                <button class="filter-chip-btn bear" id="btn-pat-bear">🔴 Bearish Only</button>
+                            </div>
+                        </div>
+
+                        <!-- 8 Individual Pattern Toggle Items -->
+                        <div class="pattern-toggles-grid" id="pattern-toggles-container">
+                            <!-- Populated dynamically / static defaults below -->
+                            <div class="pat-item-card" data-pat-key="Hammer (Pinbar)">
+                                <div class="pat-item-left">
+                                    <span class="pat-emoji">🔨</span>
+                                    <div class="pat-info">
+                                        <span class="pat-title">Hammer (Pinbar)</span>
+                                        <div class="pat-tags">
+                                            <span class="pat-dir-tag bull">Bullish Reversal</span>
+                                            <span class="pat-count-pill" id="cnt-Hammer-Pinbar">0 found</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <label class="switch-ui">
+                                    <input type="checkbox" checked class="pat-checkbox" data-pattern="Hammer (Pinbar)">
+                                    <span class="slider-ui"></span>
+                                </label>
+                            </div>
+
+                            <div class="pat-item-card" data-pat-key="Bullish Engulfing">
+                                <div class="pat-item-left">
+                                    <span class="pat-emoji">⚡</span>
+                                    <div class="pat-info">
+                                        <span class="pat-title">Bullish Engulfing</span>
+                                        <div class="pat-tags">
+                                            <span class="pat-dir-tag bull">Bullish Expansion</span>
+                                            <span class="pat-count-pill" id="cnt-Bullish-Engulfing">0 found</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <label class="switch-ui">
+                                    <input type="checkbox" checked class="pat-checkbox" data-pattern="Bullish Engulfing">
+                                    <span class="slider-ui"></span>
+                                </label>
+                            </div>
+
+                            <div class="pat-item-card" data-pat-key="Bearish Engulfing">
+                                <div class="pat-item-left">
+                                    <span class="pat-emoji">🔻</span>
+                                    <div class="pat-info">
+                                        <span class="pat-title">Bearish Engulfing</span>
+                                        <div class="pat-tags">
+                                            <span class="pat-dir-tag bear">Bearish Reversal</span>
+                                            <span class="pat-count-pill" id="cnt-Bearish-Engulfing">0 found</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <label class="switch-ui">
+                                    <input type="checkbox" checked class="pat-checkbox" data-pattern="Bearish Engulfing">
+                                    <span class="slider-ui"></span>
+                                </label>
+                            </div>
+
+                            <div class="pat-item-card" data-pat-key="Shooting Star">
+                                <div class="pat-item-left">
+                                    <span class="pat-emoji">🌠</span>
+                                    <div class="pat-info">
+                                        <span class="pat-title">Shooting Star</span>
+                                        <div class="pat-tags">
+                                            <span class="pat-dir-tag bear">Bearish Exhaustion</span>
+                                            <span class="pat-count-pill" id="cnt-Shooting-Star">0 found</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <label class="switch-ui">
+                                    <input type="checkbox" checked class="pat-checkbox" data-pattern="Shooting Star">
+                                    <span class="slider-ui"></span>
+                                </label>
+                            </div>
+
+                            <div class="pat-item-card" data-pat-key="Morning Star">
+                                <div class="pat-item-left">
+                                    <span class="pat-emoji">⭐</span>
+                                    <div class="pat-info">
+                                        <span class="pat-title">Morning Star</span>
+                                        <div class="pat-tags">
+                                            <span class="pat-dir-tag bull">Multi-Bar Reversal</span>
+                                            <span class="pat-count-pill" id="cnt-Morning-Star">0 found</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <label class="switch-ui">
+                                    <input type="checkbox" checked class="pat-checkbox" data-pattern="Morning Star">
+                                    <span class="slider-ui"></span>
+                                </label>
+                            </div>
+
+                            <div class="pat-item-card" data-pat-key="Evening Star">
+                                <div class="pat-item-left">
+                                    <span class="pat-emoji">🌌</span>
+                                    <div class="pat-info">
+                                        <span class="pat-title">Evening Star</span>
+                                        <div class="pat-tags">
+                                            <span class="pat-dir-tag bear">Multi-Bar Top</span>
+                                            <span class="pat-count-pill" id="cnt-Evening-Star">0 found</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <label class="switch-ui">
+                                    <input type="checkbox" checked class="pat-checkbox" data-pattern="Evening Star">
+                                    <span class="slider-ui"></span>
+                                </label>
+                            </div>
+
+                            <div class="pat-item-card" data-pat-key="Resistance Breakout">
+                                <div class="pat-item-left">
+                                    <span class="pat-emoji">🚀</span>
+                                    <div class="pat-info">
+                                        <span class="pat-title">Resistance Breakout</span>
+                                        <div class="pat-tags">
+                                            <span class="pat-dir-tag bull">Bullish Continuation</span>
+                                            <span class="pat-count-pill" id="cnt-Resistance-Breakout">0 found</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <label class="switch-ui">
+                                    <input type="checkbox" checked class="pat-checkbox" data-pattern="Resistance Breakout">
+                                    <span class="slider-ui"></span>
+                                </label>
+                            </div>
+
+                            <div class="pat-item-card" data-pat-key="Support Breakdown">
+                                <div class="pat-item-left">
+                                    <span class="pat-emoji">📉</span>
+                                    <div class="pat-info">
+                                        <span class="pat-title">Support Breakdown</span>
+                                        <div class="pat-tags">
+                                            <span class="pat-dir-tag bear">Bearish Continuation</span>
+                                            <span class="pat-count-pill" id="cnt-Support-Breakdown">0 found</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <label class="switch-ui">
+                                    <input type="checkbox" checked class="pat-checkbox" data-pattern="Support Breakdown">
+                                    <span class="slider-ui"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Detected Patterns Ledger Table -->
+                        <div class="pattern-ledger-box">
+                            <div class="deck-eyebrow">RECENT PATTERN DETECTIONS TIMELINE</div>
+                            <div class="pattern-ledger-scroll">
+                                <table class="pattern-ledger-table">
+                                    <thead>
+                                        <tr>
+                                            <th>TIME</th>
+                                            <th>PATTERN</th>
+                                            <th>BIAS</th>
+                                            <th>PRICE</th>
+                                            <th>VOLUME</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="pattern-ledger-tbody">
+                                        <tr><td colspan="5" style="text-align:center; color:#536079; padding: 12px;">Loading pattern history...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Dedicated Clean Pattern Lab Chart -->
+                    <div class="pattern-chart-card">
+                        <div class="chart-header-strip">
+                            <div class="chart-header-left">
+                                <span class="chart-title-tag">🏷️ DEDICATED PATTERN ANALYSIS CHART</span>
+                                <span class="active-sym-tag" id="pat-chart-sym">BTC-USD · 1H</span>
+                                <span class="filtered-markers-count" id="filtered-markers-tag">-- Markers Plotted</span>
+                            </div>
+                            <div class="chart-header-right">
+                                <button class="overlay-btn" id="btn-sync-to-terminal" title="Apply current pattern filters to Main Trading Terminal Chart">
+                                    📌 Sync to Terminal
+                                </button>
+                                <button class="overlay-btn" id="btn-fit-pattern-chart" title="Fit candlestick data in chart">
+                                    🔍 Fit Chart
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Dedicated Chart Viewport -->
+                        <div class="pat-chart-wrapper" id="pattern-lab-chart-container">
+                            <!-- TradingView Candlestick Series is instantiated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
     </main>
 
     <!-- Hidden containers for backwards compatibility of elements -->
@@ -950,6 +1309,6 @@
     <!-- Paper Trading Toast Notification System -->
     <div class="paper-toast-container" id="paper-toast-container"></div>
 
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=4"></script>
 </body>
 </html>

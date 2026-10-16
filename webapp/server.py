@@ -271,7 +271,7 @@ async def get_candles(
         })
         prev_close = c
 
-    # Generate ONLY BUY/SELL markers at signal triggers (transition points)
+    # Generate ONLY BUY/SELL markers at true directional reversals
     markers = []
     prev_sig = None
 
@@ -298,7 +298,7 @@ async def get_candles(
                     "text": f"SELL ({strength:.0%})",
                     "size": 2
                 })
-        prev_sig = cur_sig
+            prev_sig = cur_sig
 
     # Generate Candlestick Pattern Markers
     pattern_markers = []
@@ -325,7 +325,9 @@ async def get_candles(
                     "color": col,
                     "shape": shape,
                     "text": label,
-                    "size": 1
+                    "size": 1,
+                    "pattern_name": p_name,
+                    "pattern_type": "BULLISH" if pos == "belowBar" else "BEARISH"
                 })
 
     latest_price = candles[-1]["close"]
